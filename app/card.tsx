@@ -4,7 +4,7 @@ import { useState } from "react"
 
 export default function Card() {
     const [copied, setCopied] = useState(false)
-    const command = "ssh tunnl.live -p 2200 -R 443:localhost:8000"
+    const command = "ssh id.tunnl.live -p 2200 -R 443:localhost:8000"
 
     const copyToClipboard = () => {
         navigator.clipboard.writeText(command)
