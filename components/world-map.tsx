@@ -13,6 +13,14 @@ interface Server {
 }
 
 const servers: Server[] = [
+    {
+    id: "us",
+    name: "United States",
+    location: "Chicago",
+    subdomain: "us.tunnl.live",
+    coordinates: [-87.6298, 41.8781],
+    ping: null,
+  },
   {
     id: "sgp",
     name: "Singapore",
@@ -24,9 +32,9 @@ const servers: Server[] = [
   {
     id: "id",
     name: "Indonesia",
-    location: "Jakarta",
+    location: "Bogor",
     subdomain: "id.tunnl.live",
-    coordinates: [106.8456, -6.2088],
+    coordinates: [106.8456, -6.5950],
     ping: null,
   },
 ]

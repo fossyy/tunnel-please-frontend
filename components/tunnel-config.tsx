@@ -18,6 +18,10 @@ interface Server {
   ping: number | null
   status: "online" | "offline" | "maintenance"
   pingStatus: "idle" | "testing" | "success" | "failed" | "timeout"
+  capabilities: {
+    http: boolean
+    tcp: boolean
+  }
 }
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"
@@ -34,6 +38,20 @@ const fetchServers = async (): Promise<Server[]> => {
 
   const mockServers: Server[] = [
     {
+      id: "us",
+      name: "United States",
+      location: "Chicago",
+      subdomain: "us.tunnl.live",
+      coordinates: [-87.6298, 41.8781],
+      ping: null,
+      status: "online",
+      pingStatus: "idle",
+      capabilities: {
+        http: true,
+        tcp: false,
+      },
+    },
+    {
       id: "sgp",
       name: "Singapore",
       location: "Singapore",
@@ -42,16 +60,24 @@ const fetchServers = async (): Promise<Server[]> => {
       ping: null,
       status: "online",
       pingStatus: "idle",
+      capabilities: {
+        http: true,
+        tcp: false,
+      },
     },
     {
       id: "id",
       name: "Indonesia",
-      location: "Jakarta",
+      location: "Bogor",
       subdomain: "id.tunnl.live",
-      coordinates: [106.8456, -6.2088],
+      coordinates: [106.8456, -6.5950],
       ping: null,
       status: "online",
       pingStatus: "idle",
+      capabilities: {
+        http: true,
+        tcp: true,
+      },
     },
   ]
 
@@ -194,14 +220,33 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
 
           setServers(updatedServers)
 
-          const successfulServers = updatedServers.filter((s) => s.pingStatus === "success" && s.ping !== null)
-          if (successfulServers.length > 0) {
-            const bestServer = successfulServers.reduce((prev, current) =>
+          const compatibleServers = updatedServers.filter(
+            (s) =>
+              s.pingStatus === "success" &&
+              s.ping !== null &&
+              ((localConfig.type === "http" && s.capabilities.http) ||
+                (localConfig.type === "tcp" && s.capabilities.tcp)),
+          )
+
+          if (compatibleServers.length > 0) {
+            const bestServer = compatibleServers.reduce((prev, current) =>
               prev.ping! < current.ping! ? prev : current,
             )
             onServerSelect(bestServer)
-          } else if (updatedServers.length > 0) {
-            onServerSelect(updatedServers[0])
+          } else {
+            const successfulServers = updatedServers.filter((s) => s.pingStatus === "success" && s.ping !== null)
+            if (successfulServers.length > 0) {
+              const bestServer = successfulServers.reduce((prev, current) =>
+                prev.ping! < current.ping! ? prev : current,
+              )
+              onServerSelect(bestServer)
+
+              if (localConfig.type === "tcp" && !bestServer.capabilities.tcp) {
+                updateConfig({ type: "http", serverPort: 443 })
+              }
+            } else if (updatedServers.length > 0) {
+              onServerSelect(updatedServers[0])
+            }
           }
         } catch (error) {
           console.error("Error testing pings:", error)
@@ -212,7 +257,13 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
 
       autoTestPings()
     }
-  }, [servers.length, isLoadingServers, hasAutoTested, onServerSelect])
+  }, [servers.length, isLoadingServers, hasAutoTested, onServerSelect, localConfig.type])
+
+  useEffect(() => {
+    if (selectedServer && localConfig.type === "tcp" && !selectedServer.capabilities.tcp) {
+      updateConfig({ type: "http", serverPort: 443 })
+    }
+  }, [selectedServer, localConfig.type])
 
   const updateConfig = (updates: Partial<TunnelConfig>) => {
     const newConfig = { ...localConfig, ...updates }
@@ -351,6 +402,44 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
     }
   }
 
+  const canSelectServer = (server: Server) => {
+    if (server.pingStatus === "failed" || server.pingStatus === "timeout") {
+      return false
+    }
+
+    if (localConfig.type === "http" && !server.capabilities.http) {
+      return false
+    }
+    if (localConfig.type === "tcp" && !server.capabilities.tcp) {
+      return false
+    }
+
+    return true
+  }
+
+  const getServerUnavailableReason = (server: Server) => {
+    if (server.pingStatus === "failed" || server.pingStatus === "timeout") {
+      return "Server unavailable"
+    }
+    if (localConfig.type === "tcp" && !server.capabilities.tcp) {
+      return "TCP not supported"
+    }
+    if (localConfig.type === "http" && !server.capabilities.http) {
+      return "HTTP not supported"
+    }
+    return null
+  }
+
+  const getCompatibleServers = () => {
+    return servers.filter((server) => {
+      if (localConfig.type === "http") return server.capabilities.http
+      if (localConfig.type === "tcp") return server.capabilities.tcp
+      return true
+    })
+  }
+
+  const compatibleServers = getCompatibleServers()
+
   return (
     <div className="bg-gray-900 rounded-lg border border-gray-800 p-6 mb-8">
       <h3 className="text-lg font-bold mb-6">Tunnel Configuration</h3>
@@ -385,6 +474,35 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
             </button>
           )}
         </div>
+
+        {compatibleServers.length === 0 && servers.length > 0 && (
+          <div className="bg-yellow-950 rounded-lg border border-yellow-800 p-4 mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-yellow-400"
+              >
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" x2="12" y1="9" y2="13" />
+                <line x1="12" x2="12.01" y1="17" y2="17" />
+              </svg>
+              <p className="text-yellow-400 font-medium">
+                No servers support {localConfig.type.toUpperCase()} forwarding
+              </p>
+            </div>
+            <p className="text-yellow-300 text-sm">
+              Please switch to HTTP/HTTPS forwarding or wait for TCP-compatible servers to come online.
+            </p>
+          </div>
+        )}
 
         {isLoadingServers ? (
           <div className="bg-gray-800 rounded-lg border border-gray-700 p-8 text-center">
@@ -483,10 +601,9 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
                     key={server.id}
                     coordinates={server.coordinates}
                     onClick={() => {
-                      if (server.pingStatus === "failed" || server.pingStatus === "timeout") {
-                        return
+                      if (canSelectServer(server)) {
+                        onServerSelect(server)
                       }
-                      onServerSelect(server)
                     }}
                   >
                     <g>
@@ -517,75 +634,94 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
             </div>
 
             <div className="grid gap-3 md:grid-cols-3">
-              {servers.map((server) => (
-                <div
-                  key={server.id}
-                  onClick={() => {
-                    if (server.pingStatus === "failed" || server.pingStatus === "timeout") {
-                      return
-                    }
-                    onServerSelect(server)
-                  }}
-                  className={`p-3 rounded-lg border transition-all duration-200 ${selectedServer?.id === server.id
-                      ? "bg-emerald-950 border-emerald-500"
-                      : server.pingStatus === "failed" || server.pingStatus === "timeout"
-                        ? "bg-red-950 border-red-800 cursor-not-allowed opacity-75"
-                        : "bg-gray-800 border-gray-700 hover:border-gray-600 cursor-pointer"
+              {servers.map((server) => {
+                const canSelect = canSelectServer(server)
+                const unavailableReason = getServerUnavailableReason(server)
+
+                return (
+                  <div
+                    key={server.id}
+                    onClick={() => {
+                      if (canSelect) {
+                        onServerSelect(server)
+                      }
+                    }}
+                    className={`p-3 rounded-lg border transition-all duration-200 ${
+                      selectedServer?.id === server.id
+                        ? "bg-emerald-950 border-emerald-500"
+                        : !canSelect
+                          ? "bg-red-950 border-red-800 cursor-not-allowed opacity-75"
+                          : "bg-gray-800 border-gray-700 hover:border-gray-600 cursor-pointer"
                     }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <h5 className="font-medium text-sm">{server.name}</h5>
-                    <div
-                      className={`w-2 h-2 rounded-full ${selectedServer?.id === server.id
-                          ? "bg-emerald-400"
-                          : server.pingStatus === "failed" || server.pingStatus === "timeout"
-                            ? "bg-red-400"
-                            : server.pingStatus === "success" && server.ping !== null
-                              ? server.ping < 50
-                                ? "bg-green-400"
-                                : server.ping < 100
-                                  ? "bg-yellow-400"
-                                  : server.ping < 150
-                                    ? "bg-orange-400"
-                                    : "bg-red-400"
-                              : "bg-gray-600"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <h5 className="font-medium text-sm">{server.name}</h5>
+                      <div
+                        className={`w-2 h-2 rounded-full ${
+                          selectedServer?.id === server.id
+                            ? "bg-emerald-400"
+                            : !canSelect
+                              ? "bg-red-400"
+                              : server.pingStatus === "success" && server.ping !== null
+                                ? server.ping < 50
+                                  ? "bg-green-400"
+                                  : server.ping < 100
+                                    ? "bg-yellow-400"
+                                    : server.ping < 150
+                                      ? "bg-orange-400"
+                                      : "bg-red-400"
+                                : "bg-gray-600"
                         }`}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-400 mb-1">{server.location}</p>
-                  <p className="text-xs font-mono text-gray-500 mb-2">{server.subdomain}</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs">Ping:</span>
-                    <div className="flex items-center gap-1">
-                      {server.pingStatus === "testing" && (
-                        <div className="animate-spin rounded-full h-3 w-3 border border-gray-400 border-t-transparent"></div>
-                      )}
-                      {hasAutoTested ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (server.pingStatus !== "testing") {
-                              testPingForServer(server)
-                            }
-                          }}
-                          disabled={server.pingStatus === "testing"}
-                          className={`text-xs font-bold hover:underline disabled:no-underline disabled:cursor-not-allowed ${getPingColor(
-                            server,
-                          )}`}
-                        >
-                          {getPingDisplay(server)}
-                        </button>
-                      ) : (
-                        <span className={`text-xs font-bold ${getPingColor(server)}`}>{getPingDisplay(server)}</span>
-                      )}
+                      />
                     </div>
+                    <p className="text-xs text-gray-400 mb-1">{server.location}</p>
+                    <p className="text-xs font-mono text-gray-500 mb-2">{server.subdomain}</p>
+
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs text-gray-400">Supports:</span>
+                      <div className="flex gap-1">
+                        {server.capabilities.http && (
+                          <span className="text-xs bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded">HTTP</span>
+                        )}
+                        {server.capabilities.tcp && (
+                          <span className="text-xs bg-purple-900 text-purple-300 px-1.5 py-0.5 rounded">TCP</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs">Ping:</span>
+                      <div className="flex items-center gap-1">
+                        {server.pingStatus === "testing" && (
+                          <div className="animate-spin rounded-full h-3 w-3 border border-gray-400 border-t-transparent"></div>
+                        )}
+                        {hasAutoTested ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (server.pingStatus !== "testing") {
+                                testPingForServer(server)
+                              }
+                            }}
+                            disabled={server.pingStatus === "testing"}
+                            className={`text-xs font-bold hover:underline disabled:no-underline disabled:cursor-not-allowed ${getPingColor(
+                              server,
+                            )}`}
+                          >
+                            {getPingDisplay(server)}
+                          </button>
+                        ) : (
+                          <span className={`text-xs font-bold ${getPingColor(server)}`}>{getPingDisplay(server)}</span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">{getPingStatus(server)}</p>
+                    {unavailableReason && (
+                      <p className="text-xs text-red-400 mt-1 font-medium">Cannot select - {unavailableReason}</p>
+                    )}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">{getPingStatus(server)}</p>
-                  {(server.pingStatus === "failed" || server.pingStatus === "timeout") && (
-                    <p className="text-xs text-red-400 mt-1 font-medium">Cannot select - Server unavailable</p>
-                  )}
-                </div>
-              ))}
+                )
+              })}
             </div>
           </>
         )}
@@ -596,47 +732,85 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
           <div className="mb-6">
             <label className="block text-sm font-medium mb-3">Forwarding Type</label>
             <div className="flex gap-4">
-              <label className="flex items-center cursor-pointer">
+              <label
+                className={`flex items-center ${
+                  servers.some((s) => s.capabilities.http) ? "cursor-pointer" : "cursor-not-allowed opacity-50"
+                }`}
+              >
                 <input
                   type="radio"
                   name="forwardingType"
                   value="http"
                   checked={localConfig.type === "http"}
-                  onChange={() => updateConfig({ type: "http", serverPort: 443 })}
+                  onChange={() =>
+                    servers.some((s) => s.capabilities.http) && updateConfig({ type: "http", serverPort: 443 })
+                  }
+                  disabled={!servers.some((s) => s.capabilities.http)}
                   className="sr-only"
                 />
                 <div
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${localConfig.type === "http"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
+                    localConfig.type === "http"
                       ? "bg-emerald-950 border-emerald-500 text-emerald-400"
-                      : "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
-                    }`}
+                      : servers.some((s) => s.capabilities.http)
+                        ? "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
+                        : "bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed"
+                  }`}
                 >
                   <div
-                    className={`w-2 h-2 rounded-full ${localConfig.type === "http" ? "bg-emerald-400" : "bg-gray-500"}`}
+                    className={`w-2 h-2 rounded-full ${
+                      localConfig.type === "http"
+                        ? "bg-emerald-400"
+                        : servers.some((s) => s.capabilities.http)
+                          ? "bg-gray-500"
+                          : "bg-gray-600"
+                    }`}
                   />
                   <span className="font-medium">HTTP/HTTPS</span>
+                  {!servers.some((s) => s.capabilities.http) && (
+                    <span className="text-xs text-gray-500 ml-1">(Unavailable)</span>
+                  )}
                 </div>
               </label>
 
-              <label className="flex items-center cursor-pointer">
+              <label
+                className={`flex items-center ${
+                  servers.some((s) => s.capabilities.tcp) ? "cursor-pointer" : "cursor-not-allowed opacity-50"
+                }`}
+              >
                 <input
                   type="radio"
                   name="forwardingType"
                   value="tcp"
                   checked={localConfig.type === "tcp"}
-                  onChange={() => updateConfig({ type: "tcp", serverPort: 8080 })}
+                  onChange={() =>
+                    servers.some((s) => s.capabilities.tcp) && updateConfig({ type: "tcp", serverPort: 8080 })
+                  }
+                  disabled={!servers.some((s) => s.capabilities.tcp)}
                   className="sr-only"
                 />
                 <div
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${localConfig.type === "tcp"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
+                    localConfig.type === "tcp"
                       ? "bg-emerald-950 border-emerald-500 text-emerald-400"
-                      : "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
-                    }`}
+                      : servers.some((s) => s.capabilities.tcp)
+                        ? "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
+                        : "bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed"
+                  }`}
                 >
                   <div
-                    className={`w-2 h-2 rounded-full ${localConfig.type === "tcp" ? "bg-emerald-400" : "bg-gray-500"}`}
+                    className={`w-2 h-2 rounded-full ${
+                      localConfig.type === "tcp"
+                        ? "bg-emerald-400"
+                        : servers.some((s) => s.capabilities.tcp)
+                          ? "bg-gray-500"
+                          : "bg-gray-600"
+                    }`}
                   />
                   <span className="font-medium">TCP</span>
+                  {!servers.some((s) => s.capabilities.tcp) && (
+                    <span className="text-xs text-gray-500 ml-1">(Unavailable)</span>
+                  )}
                 </div>
               </label>
             </div>
@@ -646,6 +820,32 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
                 ? "Best for web applications and APIs. Uses HTTPS (port 443) or HTTP (port 80)."
                 : "For any TCP service like databases, game servers, or custom applications."}
             </p>
+
+            {!servers.some((s) => (localConfig.type === "http" ? s.capabilities.http : s.capabilities.tcp)) && (
+              <div className="mt-3 p-3 bg-yellow-950 rounded-lg border border-yellow-800">
+                <div className="flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-yellow-400"
+                  >
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" x2="12" y1="9" y2="13" />
+                    <line x1="12" x2="12.01" y1="17" y2="17" />
+                  </svg>
+                  <p className="text-yellow-400 text-sm font-medium">
+                    No servers currently support {localConfig.type.toUpperCase()} forwarding
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 mb-6">
