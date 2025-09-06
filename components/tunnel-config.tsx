@@ -62,7 +62,7 @@ const fetchServers = async (): Promise<Server[]> => {
       pingStatus: "idle",
       capabilities: {
         http: true,
-        tcp: false,
+        tcp: true,
       },
     },
     {

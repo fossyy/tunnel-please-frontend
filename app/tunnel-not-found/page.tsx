@@ -10,7 +10,6 @@ export default function TunnelNotFound() {
     <div className="flex min-h-screen flex-col bg-gray-950 text-white">
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-8">
         <div className="w-full max-w-2xl mx-auto text-center">
-          {/* Mascot */}
           <div className="mb-8">
             <Image
               src="/mascot-confused.png"
@@ -21,7 +20,6 @@ export default function TunnelNotFound() {
             />
           </div>
 
-          {/* Error Message */}
           <div className="mb-12">
             <h1 className="text-4xl font-bold mb-6">Tunnel Not Found</h1>
             <p className="text-gray-400 mb-6 text-lg">We couldn't find an active tunnel for:</p>
@@ -31,7 +29,6 @@ export default function TunnelNotFound() {
             <p className="text-gray-300 text-lg">This means no SSH tunnel is currently running for this domain.</p>
           </div>
 
-          {/* Instructions */}
           <div className="bg-gray-900 rounded-lg p-8 border border-gray-800 mb-8 text-left">
             <h2 className="text-xl font-bold mb-6 text-center">To create a tunnel:</h2>
             <div className="space-y-4">
@@ -74,7 +71,6 @@ export default function TunnelNotFound() {
             </div>
           </div>
 
-          {/* Call to Action */}
           <div className="space-y-4">
             <Link
               href="/"
