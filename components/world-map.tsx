@@ -60,17 +60,17 @@ export default function WorldMap({ onServerSelect, selectedServer }: WorldMapPro
 
   const getPingColor = (ping: number | null) => {
     if (!ping) return "text-gray-400"
-    if (ping < 50) return "text-green-400"
-    if (ping < 100) return "text-yellow-400"
-    if (ping < 150) return "text-orange-400"
+    if (ping < 100) return "text-green-400"
+    if (ping < 300) return "text-yellow-400"
+    if (ping < 500) return "text-orange-400"
     return "text-red-400"
   }
 
   const getPingStatus = (ping: number | null) => {
     if (!ping) return "Testing..."
-    if (ping < 50) return "Excellent"
-    if (ping < 100) return "Good"
-    if (ping < 150) return "Fair"
+    if (ping < 100) return "Excellent"
+    if (ping < 300) return "Good"
+    if (ping < 500) return "Fair"
     return "Poor"
   }
 
