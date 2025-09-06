@@ -13,12 +13,20 @@ interface Server {
 }
 
 const servers: Server[] = [
-    {
+  {
     id: "us",
     name: "United States",
     location: "Chicago",
     subdomain: "us.tunnl.live",
     coordinates: [-87.6298, 41.8781],
+    ping: null,
+  },
+  {
+    id: "eu",
+    name: "Europe",
+    location: "Frankfurt",
+    subdomain: "eu.tunnl.live",
+    coordinates: [8.6821, 50.1109],
     ping: null,
   },
   {
@@ -159,11 +167,10 @@ export default function WorldMap({ onServerSelect, selectedServer }: WorldMapPro
           <div
             key={server.id}
             onClick={() => onServerSelect(server)}
-            className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 ${
-              selectedServer.id === server.id
+            className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 ${selectedServer.id === server.id
                 ? "bg-emerald-950 border-emerald-500"
                 : "bg-gray-900 border-gray-800 hover:border-gray-700"
-            }`}
+              }`}
           >
             <div className="flex items-center justify-between mb-2">
               <h4 className="font-bold">{server.name}</h4>

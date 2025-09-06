@@ -52,6 +52,20 @@ const fetchServers = async (): Promise<Server[]> => {
       },
     },
     {
+      id: "eu",
+      name: "Europe",
+      location: "Frankfurt",
+      subdomain: "eu.tunnl.live",
+      coordinates: [8.6821, 50.1109],
+      ping: null,
+      status: "online",
+      pingStatus: "idle",
+      capabilities: {
+        http: true,
+        tcp: false,
+      },
+    },
+    {
       id: "sgp",
       name: "Singapore",
       location: "Singapore",
@@ -646,19 +660,17 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
                         onServerSelect(server)
                       }
                     }}
-                    className={`p-3 rounded-lg border transition-all duration-200 ${
-                      selectedServer?.id === server.id
+                    className={`p-3 rounded-lg border transition-all duration-200 ${selectedServer?.id === server.id
                         ? "bg-emerald-950 border-emerald-500"
                         : !canSelect
                           ? "bg-red-950 border-red-800 cursor-not-allowed opacity-75"
                           : "bg-gray-800 border-gray-700 hover:border-gray-600 cursor-pointer"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <h5 className="font-medium text-sm">{server.name}</h5>
                       <div
-                        className={`w-2 h-2 rounded-full ${
-                          selectedServer?.id === server.id
+                        className={`w-2 h-2 rounded-full ${selectedServer?.id === server.id
                             ? "bg-emerald-400"
                             : !canSelect
                               ? "bg-red-400"
@@ -671,7 +683,7 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
                                       ? "bg-orange-400"
                                       : "bg-red-400"
                                 : "bg-gray-600"
-                        }`}
+                          }`}
                       />
                     </div>
                     <p className="text-xs text-gray-400 mb-1">{server.location}</p>
@@ -733,9 +745,8 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
             <label className="block text-sm font-medium mb-3">Forwarding Type</label>
             <div className="flex gap-4">
               <label
-                className={`flex items-center ${
-                  servers.some((s) => s.capabilities.http) ? "cursor-pointer" : "cursor-not-allowed opacity-50"
-                }`}
+                className={`flex items-center ${servers.some((s) => s.capabilities.http) ? "cursor-pointer" : "cursor-not-allowed opacity-50"
+                  }`}
               >
                 <input
                   type="radio"
@@ -749,22 +760,20 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
                   className="sr-only"
                 />
                 <div
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
-                    localConfig.type === "http"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${localConfig.type === "http"
                       ? "bg-emerald-950 border-emerald-500 text-emerald-400"
                       : servers.some((s) => s.capabilities.http)
                         ? "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
                         : "bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed"
-                  }`}
+                    }`}
                 >
                   <div
-                    className={`w-2 h-2 rounded-full ${
-                      localConfig.type === "http"
+                    className={`w-2 h-2 rounded-full ${localConfig.type === "http"
                         ? "bg-emerald-400"
                         : servers.some((s) => s.capabilities.http)
                           ? "bg-gray-500"
                           : "bg-gray-600"
-                    }`}
+                      }`}
                   />
                   <span className="font-medium">HTTP/HTTPS</span>
                   {!servers.some((s) => s.capabilities.http) && (
@@ -774,9 +783,8 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
               </label>
 
               <label
-                className={`flex items-center ${
-                  servers.some((s) => s.capabilities.tcp) ? "cursor-pointer" : "cursor-not-allowed opacity-50"
-                }`}
+                className={`flex items-center ${servers.some((s) => s.capabilities.tcp) ? "cursor-pointer" : "cursor-not-allowed opacity-50"
+                  }`}
               >
                 <input
                   type="radio"
@@ -790,22 +798,20 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
                   className="sr-only"
                 />
                 <div
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
-                    localConfig.type === "tcp"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${localConfig.type === "tcp"
                       ? "bg-emerald-950 border-emerald-500 text-emerald-400"
                       : servers.some((s) => s.capabilities.tcp)
                         ? "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
                         : "bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed"
-                  }`}
+                    }`}
                 >
                   <div
-                    className={`w-2 h-2 rounded-full ${
-                      localConfig.type === "tcp"
+                    className={`w-2 h-2 rounded-full ${localConfig.type === "tcp"
                         ? "bg-emerald-400"
                         : servers.some((s) => s.capabilities.tcp)
                           ? "bg-gray-500"
                           : "bg-gray-600"
-                    }`}
+                      }`}
                   />
                   <span className="font-medium">TCP</span>
                   {!servers.some((s) => s.capabilities.tcp) && (
