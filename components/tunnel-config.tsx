@@ -105,6 +105,9 @@ const fetchServers = async (): Promise<Server[]> => {
         tcp: true,
       },
       portRestrictions: {
+        allowedRanges: [
+          { min: 10000, max: 50000 },
+        ],
         blockedPorts: [22, 80, 443, 3306, 5432, 6379, 2200],
         supportsAutoAssign: true,
       },
