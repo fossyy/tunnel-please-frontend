@@ -22,6 +22,11 @@ interface Server {
     http: boolean
     tcp: boolean
   }
+  portRestrictions?: {
+    allowedRanges?: Array<{ min: number; max: number }>
+    blockedPorts?: number[]
+    supportsAutoAssign?: boolean
+  }
 }
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"
@@ -78,19 +83,30 @@ const fetchServers = async (): Promise<Server[]> => {
         http: true,
         tcp: true,
       },
+      portRestrictions: {
+        allowedRanges: [
+          { min: 40000, max: 41000 },
+        ],
+        blockedPorts: [22, 80, 443, 3306, 5432, 6379, 2200],
+        supportsAutoAssign: true,
+      },
     },
     {
       id: "id",
       name: "Indonesia",
       location: "Bogor",
       subdomain: "id.tunnl.live",
-      coordinates: [106.8456, -6.5950],
+      coordinates: [106.8456, -6.595],
       ping: null,
       status: "online",
       pingStatus: "idle",
       capabilities: {
         http: true,
         tcp: true,
+      },
+      portRestrictions: {
+        blockedPorts: [22, 80, 443, 3306, 5432, 6379, 2200],
+        supportsAutoAssign: true,
       },
     },
   ]
@@ -180,13 +196,18 @@ const testServerPing = (
 }
 
 export default function TunnelConfig({ config, onConfigChange, selectedServer, onServerSelect }: TunnelConfigProps) {
-  const [localConfig, setLocalConfig] = useState<TunnelConfig>(config)
+  const [localConfig, setLocalConfig] = useState<TunnelConfig>({
+    ...config,
+    serverPort: config.type === "tcp" ? 0 : config.serverPort,
+  })
   const [servers, setServers] = useState<Server[]>([])
   const [isLoadingServers, setIsLoadingServers] = useState(true)
   const [isTestingPings, setIsTestingPings] = useState(false)
   const [hasAutoTested, setHasAutoTested] = useState(false)
   const [copied, setCopied] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
+  const [portError, setPortError] = useState<string | null>(null)
+  const [pendingServerSelection, setPendingServerSelection] = useState<Server | null>(null)
 
   useEffect(() => {
     const loadServers = async () => {
@@ -223,18 +244,39 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
         )
 
         try {
-          const pingPromises = servers.map((server) => testServerPing(server))
-          const results = await Promise.all(pingPromises)
+          const testedServers: Server[] = []
 
-          const updatedServers = results.map((result) => ({
-            ...result.server,
-            ping: result.ping,
-            pingStatus: result.status,
-          }))
+          for (const server of servers) {
+            try {
+              const result = await testServerPing(server)
 
-          setServers(updatedServers)
+              const updatedServer = {
+                ...result.server,
+                ping: result.ping,
+                pingStatus: result.status,
+              }
 
-          const compatibleServers = updatedServers.filter(
+              testedServers.push(updatedServer)
+
+              setServers((prevServers) => prevServers.map((s) => (s.id === server.id ? updatedServer : s)))
+
+              await new Promise((resolve) => setTimeout(resolve, 100))
+            } catch (error) {
+              console.error(`Error testing ping for ${server.id}:`, error)
+
+              const failedServer = {
+                ...server,
+                ping: null,
+                pingStatus: "timeout" as const,
+              }
+
+              testedServers.push(failedServer)
+
+              setServers((prevServers) => prevServers.map((s) => (s.id === server.id ? failedServer : s)))
+            }
+          }
+
+          const compatibleServers = testedServers.filter(
             (s) =>
               s.pingStatus === "success" &&
               s.ping !== null &&
@@ -246,20 +288,16 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
             const bestServer = compatibleServers.reduce((prev, current) =>
               prev.ping! < current.ping! ? prev : current,
             )
-            onServerSelect(bestServer)
+            setPendingServerSelection(bestServer)
           } else {
-            const successfulServers = updatedServers.filter((s) => s.pingStatus === "success" && s.ping !== null)
+            const successfulServers = testedServers.filter((s) => s.pingStatus === "success" && s.ping !== null)
             if (successfulServers.length > 0) {
               const bestServer = successfulServers.reduce((prev, current) =>
                 prev.ping! < current.ping! ? prev : current,
               )
-              onServerSelect(bestServer)
-
-              if (localConfig.type === "tcp" && !bestServer.capabilities.tcp) {
-                updateConfig({ type: "http", serverPort: 443 })
-              }
-            } else if (updatedServers.length > 0) {
-              onServerSelect(updatedServers[0])
+              setPendingServerSelection(bestServer)
+            } else if (testedServers.length > 0) {
+              setPendingServerSelection(testedServers[0])
             }
           }
         } catch (error) {
@@ -271,13 +309,57 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
 
       autoTestPings()
     }
-  }, [servers.length, isLoadingServers, hasAutoTested, onServerSelect, localConfig.type])
+  }, [servers, isLoadingServers, hasAutoTested, localConfig.type])
+
+  useEffect(() => {
+    if (pendingServerSelection) {
+      onServerSelect(pendingServerSelection)
+      setPendingServerSelection(null)
+
+      if (localConfig.type === "tcp" && !pendingServerSelection.capabilities.tcp) {
+        updateConfig({ type: "http", serverPort: 443 })
+      }
+    }
+  }, [pendingServerSelection, onServerSelect, localConfig.type])
 
   useEffect(() => {
     if (selectedServer && localConfig.type === "tcp" && !selectedServer.capabilities.tcp) {
       updateConfig({ type: "http", serverPort: 443 })
     }
   }, [selectedServer, localConfig.type])
+
+  useEffect(() => {
+    if (selectedServer && localConfig.type === "tcp" && localConfig.serverPort !== 0) {
+      const error = validatePort(localConfig.serverPort, selectedServer)
+      setPortError(error)
+    } else {
+      setPortError(null)
+    }
+  }, [selectedServer, localConfig.serverPort, localConfig.type])
+
+  const validatePort = (port: number, server: Server): string | null => {
+    if (!server.portRestrictions) return null
+
+    const { allowedRanges, blockedPorts } = server.portRestrictions
+
+    if (blockedPorts && blockedPorts.includes(port)) {
+      return `Port ${port} is not available on this server`
+    }
+
+    if (allowedRanges && allowedRanges.length > 0) {
+      const isInRange = allowedRanges.some((range) => port >= range.min && port <= range.max)
+      if (!isInRange) {
+        const rangeStrings = allowedRanges.map((r) => `${r.min}-${r.max}`)
+        return `Port must be within allowed ranges: ${rangeStrings.join(", ")}`
+      }
+    }
+
+    if (port < 1024) {
+      return `Port ${port} is restricted. Please use a port number 1024 or higher.`
+    }
+
+    return null
+  }
 
   const updateConfig = (updates: Partial<TunnelConfig>) => {
     const newConfig = { ...localConfig, ...updates }
@@ -309,9 +391,10 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
     if (server.pingStatus === "testing") return "text-gray-400"
     if (server.pingStatus === "failed" || server.pingStatus === "timeout") return "text-red-400"
     if (server.pingStatus === "idle" || !server.ping) return "text-gray-400"
-    if (server.ping < 50) return "text-green-400"
-    if (server.ping < 100) return "text-yellow-400"
-    if (server.ping < 150) return "text-orange-400"
+    if (server.ping < 100) return "text-green-400"
+    if (server.ping < 300) return "text-yellow-400"
+    if (server.ping < 500) return "text-orange-400"
+    if (server.ping < 1000) return "text-red-400"
     return "text-red-400"
   }
 
@@ -330,19 +413,21 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
     if (server.pingStatus === "failed") return "Connection Failed"
     if (server.pingStatus === "idle") return "Not tested"
     if (!server.ping) return "Unknown"
-    if (server.ping < 50) return "Excellent"
-    if (server.ping < 100) return "Good"
-    if (server.ping < 150) return "Fair"
-    return "Poor"
+    if (server.ping < 100) return "Excellent"
+    if (server.ping < 300) return "Good"
+    if (server.ping < 500) return "Fair"
+    if (server.ping < 1000) return "Poor"
+    return "Very Poor"
   }
 
   const getMarkerColor = (server: Server) => {
     if (selectedServer?.id === server.id) return "#10b981"
     if (server.pingStatus === "failed" || server.pingStatus === "timeout") return "#ef4444"
     if (server.pingStatus === "success" && server.ping !== null) {
-      if (server.ping < 50) return "#10b981"
-      if (server.ping < 100) return "#eab308"
-      if (server.ping < 150) return "#f97316"
+      if (server.ping < 100) return "#10b981"
+      if (server.ping < 300) return "#eab308"
+      if (server.ping < 500) return "#f97316"
+      if (server.ping < 1000) return "#ef4444"
       return "#ef4444"
     }
     return "#6b7280"
@@ -352,9 +437,10 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
     if (selectedServer?.id === server.id) return "#34d399"
     if (server.pingStatus === "failed" || server.pingStatus === "timeout") return "#f87171"
     if (server.pingStatus === "success" && server.ping !== null) {
-      if (server.ping < 50) return "#34d399"
-      if (server.ping < 100) return "#facc15"
-      if (server.ping < 150) return "#fb923c"
+      if (server.ping < 100) return "#34d399"
+      if (server.ping < 300) return "#facc15"
+      if (server.ping < 500) return "#fb923c"
+      if (server.ping < 1000) return "#f87171"
       return "#f87171"
     }
     return "#9ca3af"
@@ -399,18 +485,25 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
     )
 
     try {
-      const pingPromises = servers.map((server) => testServerPing(server))
-      const results = await Promise.all(pingPromises)
+      for (const server of servers) {
+        try {
+          const result = await testServerPing(server)
 
-      const updatedServers = results.map((result) => ({
-        ...result.server,
-        ping: result.ping,
-        pingStatus: result.status,
-      }))
+          setServers((prevServers) =>
+            prevServers.map((s) => (s.id === server.id ? { ...s, ping: result.ping, pingStatus: result.status } : s)),
+          )
 
-      setServers(updatedServers)
+          await new Promise((resolve) => setTimeout(resolve, 100))
+        } catch (error) {
+          console.error(`Error testing ping for ${server.id}:`, error)
+
+          setServers((prevServers) =>
+            prevServers.map((s) => (s.id === server.id ? { ...s, ping: null, pingStatus: "timeout" } : s)),
+          )
+        }
+      }
     } catch (error) {
-      console.error("Error testing pings:", error)
+      console.error("Error in sequential ping testing:", error)
     } finally {
       setIsTestingPings(false)
     }
@@ -450,6 +543,19 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
       if (localConfig.type === "tcp") return server.capabilities.tcp
       return true
     })
+  }
+
+  const getPortRestrictionInfo = (server: Server) => {
+    if (!server.portRestrictions) return "Ports: 1024+"
+
+    const { allowedRanges } = server.portRestrictions
+
+    if (allowedRanges && allowedRanges.length > 0) {
+      const ranges = allowedRanges.map((r) => `${r.min}-${r.max}`).join(", ")
+      return `Ports: ${ranges}`
+    }
+
+    return "Ports: 1024+"
   }
 
   const compatibleServers = getCompatibleServers()
@@ -647,7 +753,7 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
               </ComposableMap>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
               {servers.map((server) => {
                 const canSelect = canSelectServer(server)
                 const unavailableReason = getServerUnavailableReason(server)
@@ -660,30 +766,32 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
                         onServerSelect(server)
                       }
                     }}
-                    className={`p-3 rounded-lg border transition-all duration-200 ${selectedServer?.id === server.id
+                    className={`p-3 rounded-lg border transition-all duration-200 ${
+                      selectedServer?.id === server.id
                         ? "bg-emerald-950 border-emerald-500"
                         : !canSelect
                           ? "bg-red-950 border-red-800 cursor-not-allowed opacity-75"
                           : "bg-gray-800 border-gray-700 hover:border-gray-600 cursor-pointer"
-                      }`}
+                    }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <h5 className="font-medium text-sm">{server.name}</h5>
                       <div
-                        className={`w-2 h-2 rounded-full ${selectedServer?.id === server.id
+                        className={`w-2 h-2 rounded-full ${
+                          selectedServer?.id === server.id
                             ? "bg-emerald-400"
                             : !canSelect
                               ? "bg-red-400"
                               : server.pingStatus === "success" && server.ping !== null
-                                ? server.ping < 50
+                                ? server.ping < 100
                                   ? "bg-green-400"
-                                  : server.ping < 100
+                                  : server.ping < 300
                                     ? "bg-yellow-400"
-                                    : server.ping < 150
+                                    : server.ping < 500
                                       ? "bg-orange-400"
                                       : "bg-red-400"
                                 : "bg-gray-600"
-                          }`}
+                        }`}
                       />
                     </div>
                     <p className="text-xs text-gray-400 mb-1">{server.location}</p>
@@ -700,6 +808,12 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
                         )}
                       </div>
                     </div>
+
+                    {server.capabilities.tcp && (
+                      <div className="mb-2">
+                        <p className="text-xs text-gray-300">{getPortRestrictionInfo(server)}</p>
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-between">
                       <span className="text-xs">Ping:</span>
@@ -745,8 +859,9 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
             <label className="block text-sm font-medium mb-3">Forwarding Type</label>
             <div className="flex gap-4">
               <label
-                className={`flex items-center ${servers.some((s) => s.capabilities.http) ? "cursor-pointer" : "cursor-not-allowed opacity-50"
-                  }`}
+                className={`flex items-center ${
+                  servers.some((s) => s.capabilities.http) ? "cursor-pointer" : "cursor-not-allowed opacity-50"
+                }`}
               >
                 <input
                   type="radio"
@@ -760,20 +875,22 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
                   className="sr-only"
                 />
                 <div
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${localConfig.type === "http"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
+                    localConfig.type === "http"
                       ? "bg-emerald-950 border-emerald-500 text-emerald-400"
                       : servers.some((s) => s.capabilities.http)
                         ? "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
                         : "bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed"
-                    }`}
+                  }`}
                 >
                   <div
-                    className={`w-2 h-2 rounded-full ${localConfig.type === "http"
+                    className={`w-2 h-2 rounded-full ${
+                      localConfig.type === "http"
                         ? "bg-emerald-400"
                         : servers.some((s) => s.capabilities.http)
                           ? "bg-gray-500"
                           : "bg-gray-600"
-                      }`}
+                    }`}
                   />
                   <span className="font-medium">HTTP/HTTPS</span>
                   {!servers.some((s) => s.capabilities.http) && (
@@ -783,8 +900,9 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
               </label>
 
               <label
-                className={`flex items-center ${servers.some((s) => s.capabilities.tcp) ? "cursor-pointer" : "cursor-not-allowed opacity-50"
-                  }`}
+                className={`flex items-center ${
+                  servers.some((s) => s.capabilities.tcp) ? "cursor-pointer" : "cursor-not-allowed opacity-50"
+                }`}
               >
                 <input
                   type="radio"
@@ -792,26 +910,28 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
                   value="tcp"
                   checked={localConfig.type === "tcp"}
                   onChange={() =>
-                    servers.some((s) => s.capabilities.tcp) && updateConfig({ type: "tcp", serverPort: 8080 })
+                    servers.some((s) => s.capabilities.tcp) && updateConfig({ type: "tcp", serverPort: 0 })
                   }
                   disabled={!servers.some((s) => s.capabilities.tcp)}
                   className="sr-only"
                 />
                 <div
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${localConfig.type === "tcp"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
+                    localConfig.type === "tcp"
                       ? "bg-emerald-950 border-emerald-500 text-emerald-400"
                       : servers.some((s) => s.capabilities.tcp)
                         ? "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
                         : "bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed"
-                    }`}
+                  }`}
                 >
                   <div
-                    className={`w-2 h-2 rounded-full ${localConfig.type === "tcp"
+                    className={`w-2 h-2 rounded-full ${
+                      localConfig.type === "tcp"
                         ? "bg-emerald-400"
                         : servers.some((s) => s.capabilities.tcp)
                           ? "bg-gray-500"
                           : "bg-gray-600"
-                      }`}
+                    }`}
                   />
                   <span className="font-medium">TCP</span>
                   {!servers.some((s) => s.capabilities.tcp) && (
@@ -867,18 +987,30 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
                   <option value={80}>80 (HTTP)</option>
                 </select>
               ) : (
-                <input
-                  type="number"
-                  value={localConfig.serverPort}
-                  onChange={(e) => updateConfig({ serverPort: Number.parseInt(e.target.value) || 8080 })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white font-mono focus:border-emerald-500 focus:outline-none"
-                  placeholder="8080"
-                  min="1024"
-                  max="65535"
-                />
+                <div className="space-y-2">
+                  <input
+                    type="number"
+                    value={localConfig.serverPort === 0 ? "" : localConfig.serverPort}
+                    onChange={(e) => updateConfig({ serverPort: Number.parseInt(e.target.value) || 0 })}
+                    className={`w-full bg-gray-800 border rounded-lg px-3 py-2 text-white font-mono focus:outline-none ${
+                      portError ? "border-red-500 focus:border-red-400" : "border-gray-700 focus:border-emerald-500"
+                    }`}
+                    placeholder="0 for auto-assign"
+                    min="0"
+                    max="65535"
+                  />
+                  {portError && <p className="text-xs text-red-400">{portError}</p>}
+                  {localConfig.serverPort === 0 && (
+                    <p className="text-xs text-blue-400">Server will automatically assign an available port</p>
+                  )}
+                </div>
               )}
               <p className="text-xs text-gray-400 mt-1">
-                {localConfig.type === "http" ? "Standard web ports" : "Port accessible from the internet"}
+                {localConfig.type === "http"
+                  ? "Standard web ports"
+                  : localConfig.serverPort === 0
+                    ? "Server will assign an available port automatically"
+                    : "Port accessible from the internet (1024+)"}
               </p>
             </div>
 
@@ -950,7 +1082,8 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
             <p className="text-sm text-gray-300">
               <span className="font-medium">Traffic Flow:</span> Internet →{" "}
               <span className="text-emerald-400 font-mono">
-                {selectedServer ? selectedServer.location : "Server"}:{localConfig.serverPort}
+                {selectedServer ? selectedServer.location : "Server"}:
+                {localConfig.serverPort === 0 ? "auto" : localConfig.serverPort}
               </span>{" "}
               → <span className="text-emerald-400 font-mono">localhost:{localConfig.localPort}</span>
             </p>
@@ -962,7 +1095,8 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
                 </>
               ) : (
                 <>
-                  TCP traffic to server port {localConfig.serverPort} will be forwarded to your localhost:
+                  TCP traffic to server port {localConfig.serverPort === 0 ? "(auto-assigned)" : localConfig.serverPort}{" "}
+                  will be forwarded to your localhost:
                   {localConfig.localPort}
                 </>
               )}
