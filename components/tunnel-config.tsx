@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { ComposableMap, Geographies, Geography, Marker } from "react-simple-maps"
+import Link from "next/link"
 
 export interface TunnelConfig {
   type: "http" | "tcp"
@@ -36,6 +37,7 @@ interface TunnelConfigProps {
   onConfigChange: (config: TunnelConfig) => void
   selectedServer: Server | null
   onServerSelect: (server: Server) => void
+  isAuthenticated?: boolean
 }
 
 const fetchServers = async (): Promise<Server[]> => {
@@ -85,9 +87,10 @@ const fetchServers = async (): Promise<Server[]> => {
       },
       portRestrictions: {
         allowedRanges: [
-          { min: 10000, max: 50000 },
+          { min: 8000, max: 8999 },
+          { min: 9000, max: 9999 },
         ],
-        blockedPorts: [22, 80, 443, 3306, 5432, 6379, 2200],
+        blockedPorts: [8080, 8443, 9000],
         supportsAutoAssign: true,
       },
     },
@@ -105,10 +108,7 @@ const fetchServers = async (): Promise<Server[]> => {
         tcp: true,
       },
       portRestrictions: {
-        allowedRanges: [
-          { min: 10000, max: 50000 },
-        ],
-        blockedPorts: [22, 80, 443, 3306, 5432, 6379, 2200],
+        blockedPorts: [22, 80, 443, 3306, 5432, 6379],
         supportsAutoAssign: true,
       },
     },
@@ -198,7 +198,13 @@ const testServerPing = (
   })
 }
 
-export default function TunnelConfig({ config, onConfigChange, selectedServer, onServerSelect }: TunnelConfigProps) {
+export default function TunnelConfig({
+  config,
+  onConfigChange,
+  selectedServer,
+  onServerSelect,
+  isAuthenticated = false,
+}: TunnelConfigProps) {
   const [localConfig, setLocalConfig] = useState<TunnelConfig>({
     ...config,
     serverPort: config.type === "tcp" ? 0 : config.serverPort,
@@ -211,6 +217,7 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
   const [serverError, setServerError] = useState<string | null>(null)
   const [portError, setPortError] = useState<string | null>(null)
   const [pendingServerSelection, setPendingServerSelection] = useState<Server | null>(null)
+  const [showTcpLoginPrompt, setShowTcpLoginPrompt] = useState(false)
 
   useEffect(() => {
     const loadServers = async () => {
@@ -283,8 +290,9 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
             (s) =>
               s.pingStatus === "success" &&
               s.ping !== null &&
+              s.capabilities.http &&
               ((localConfig.type === "http" && s.capabilities.http) ||
-                (localConfig.type === "tcp" && s.capabilities.tcp)),
+                (localConfig.type === "tcp" && s.capabilities.tcp && isAuthenticated)),
           )
 
           if (compatibleServers.length > 0) {
@@ -293,11 +301,9 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
             )
             setPendingServerSelection(bestServer)
           } else {
-            const successfulServers = testedServers.filter((s) => s.pingStatus === "success" && s.ping !== null)
-            if (successfulServers.length > 0) {
-              const bestServer = successfulServers.reduce((prev, current) =>
-                prev.ping! < current.ping! ? prev : current,
-              )
+            const httpServers = testedServers.filter((s) => s.pingStatus === "success" && s.capabilities.http)
+            if (httpServers.length > 0) {
+              const bestServer = httpServers.reduce((prev, current) => (prev.ping! < current.ping! ? prev : current))
               setPendingServerSelection(bestServer)
             } else if (testedServers.length > 0) {
               setPendingServerSelection(testedServers[0])
@@ -312,24 +318,18 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
 
       autoTestPings()
     }
-  }, [servers, isLoadingServers, hasAutoTested, localConfig.type])
+  }, [servers, isLoadingServers, hasAutoTested, localConfig.type, isAuthenticated])
 
   useEffect(() => {
     if (pendingServerSelection) {
       onServerSelect(pendingServerSelection)
       setPendingServerSelection(null)
 
-      if (localConfig.type === "tcp" && !pendingServerSelection.capabilities.tcp) {
+      if (localConfig.type === "tcp" && (!pendingServerSelection.capabilities.tcp || !isAuthenticated)) {
         updateConfig({ type: "http", serverPort: 443 })
       }
     }
-  }, [pendingServerSelection, onServerSelect, localConfig.type])
-
-  useEffect(() => {
-    if (selectedServer && localConfig.type === "tcp" && !selectedServer.capabilities.tcp) {
-      updateConfig({ type: "http", serverPort: 443 })
-    }
-  }, [selectedServer, localConfig.type])
+  }, [pendingServerSelection, onServerSelect, localConfig.type, isAuthenticated])
 
   useEffect(() => {
     if (selectedServer && localConfig.type === "tcp" && localConfig.serverPort !== 0) {
@@ -373,6 +373,16 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
 
     setLocalConfig(newConfig)
     onConfigChange(newConfig)
+  }
+
+  const handleTcpSelection = () => {
+    if (!isAuthenticated) {
+      setShowTcpLoginPrompt(true)
+      return
+    }
+
+    updateConfig({ type: "tcp", serverPort: 0 })
+    setShowTcpLoginPrompt(false)
   }
 
   const generateCommand = () => {
@@ -520,7 +530,7 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
     if (localConfig.type === "http" && !server.capabilities.http) {
       return false
     }
-    if (localConfig.type === "tcp" && !server.capabilities.tcp) {
+    if (localConfig.type === "tcp" && (!server.capabilities.tcp || !isAuthenticated)) {
       return false
     }
 
@@ -534,6 +544,9 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
     if (localConfig.type === "tcp" && !server.capabilities.tcp) {
       return "TCP not supported"
     }
+    if (localConfig.type === "tcp" && !isAuthenticated) {
+      return "Sign in required for TCP"
+    }
     if (localConfig.type === "http" && !server.capabilities.http) {
       return "HTTP not supported"
     }
@@ -543,7 +556,7 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
   const getCompatibleServers = () => {
     return servers.filter((server) => {
       if (localConfig.type === "http") return server.capabilities.http
-      if (localConfig.type === "tcp") return server.capabilities.tcp
+      if (localConfig.type === "tcp") return server.capabilities.tcp && isAuthenticated
       return true
     })
   }
@@ -562,6 +575,7 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
   }
 
   const compatibleServers = getCompatibleServers()
+  const hasTcpServers = servers.some((s) => s.capabilities.tcp)
 
   return (
     <div className="bg-gray-900 rounded-lg border border-gray-800 p-6 mb-8">
@@ -619,10 +633,13 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
               </svg>
               <p className="text-yellow-400 font-medium">
                 No servers support {localConfig.type.toUpperCase()} forwarding
+                {!isAuthenticated && localConfig.type === "tcp" && " for guest users"}
               </p>
             </div>
             <p className="text-yellow-300 text-sm">
-              Please switch to HTTP/HTTPS forwarding or wait for TCP-compatible servers to come online.
+              {!isAuthenticated && localConfig.type === "tcp"
+                ? "Please sign in to access TCP forwarding or switch to HTTP/HTTPS forwarding."
+                : "Please switch to HTTP/HTTPS forwarding or wait for TCP-compatible servers to come online."}
             </p>
           </div>
         )}
@@ -807,12 +824,18 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
                           <span className="text-xs bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded">HTTP</span>
                         )}
                         {server.capabilities.tcp && (
-                          <span className="text-xs bg-purple-900 text-purple-300 px-1.5 py-0.5 rounded">TCP</span>
+                          <span
+                            className={`text-xs px-1.5 py-0.5 rounded ${
+                              isAuthenticated ? "bg-purple-900 text-purple-300" : "bg-gray-700 text-gray-400"
+                            }`}
+                          >
+                            TCP{!isAuthenticated && " 🔒"}
+                          </span>
                         )}
                       </div>
                     </div>
 
-                    {server.capabilities.tcp && (
+                    {server.capabilities.tcp && isAuthenticated && (
                       <div className="mb-2">
                         <p className="text-xs text-gray-300">{getPortRestrictionInfo(server)}</p>
                       </div>
@@ -861,84 +884,88 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
           <div className="mb-6">
             <label className="block text-sm font-medium mb-3">Forwarding Type</label>
             <div className="flex gap-4">
-              <label
-                className={`flex items-center ${
-                  servers.some((s) => s.capabilities.http) ? "cursor-pointer" : "cursor-not-allowed opacity-50"
-                }`}
-              >
+              <label className="flex items-center cursor-pointer">
                 <input
                   type="radio"
                   name="forwardingType"
                   value="http"
                   checked={localConfig.type === "http"}
-                  onChange={() =>
-                    servers.some((s) => s.capabilities.http) && updateConfig({ type: "http", serverPort: 443 })
-                  }
-                  disabled={!servers.some((s) => s.capabilities.http)}
+                  onChange={() => updateConfig({ type: "http", serverPort: 443 })}
                   className="sr-only"
                 />
                 <div
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
                     localConfig.type === "http"
                       ? "bg-emerald-950 border-emerald-500 text-emerald-400"
-                      : servers.some((s) => s.capabilities.http)
-                        ? "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
-                        : "bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed"
+                      : "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
                   }`}
                 >
                   <div
-                    className={`w-2 h-2 rounded-full ${
-                      localConfig.type === "http"
-                        ? "bg-emerald-400"
-                        : servers.some((s) => s.capabilities.http)
-                          ? "bg-gray-500"
-                          : "bg-gray-600"
-                    }`}
+                    className={`w-2 h-2 rounded-full ${localConfig.type === "http" ? "bg-emerald-400" : "bg-gray-500"}`}
                   />
                   <span className="font-medium">HTTP/HTTPS</span>
-                  {!servers.some((s) => s.capabilities.http) && (
-                    <span className="text-xs text-gray-500 ml-1">(Unavailable)</span>
-                  )}
                 </div>
               </label>
 
-              <label
-                className={`flex items-center ${
-                  servers.some((s) => s.capabilities.tcp) ? "cursor-pointer" : "cursor-not-allowed opacity-50"
-                }`}
-              >
+              <label className="flex items-center cursor-pointer">
                 <input
                   type="radio"
                   name="forwardingType"
                   value="tcp"
                   checked={localConfig.type === "tcp"}
-                  onChange={() =>
-                    servers.some((s) => s.capabilities.tcp) && updateConfig({ type: "tcp", serverPort: 0 })
-                  }
-                  disabled={!servers.some((s) => s.capabilities.tcp)}
+                  onChange={handleTcpSelection}
+                  disabled={!isAuthenticated && !hasTcpServers}
                   className="sr-only"
                 />
                 <div
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
                     localConfig.type === "tcp"
                       ? "bg-emerald-950 border-emerald-500 text-emerald-400"
-                      : servers.some((s) => s.capabilities.tcp)
-                        ? "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
-                        : "bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed"
+                      : !isAuthenticated && hasTcpServers
+                        ? "bg-gray-800 border-gray-700 text-gray-400 cursor-pointer hover:border-yellow-600"
+                        : isAuthenticated && hasTcpServers
+                          ? "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
+                          : "bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed opacity-50"
                   }`}
                 >
                   <div
-                    className={`w-2 h-2 rounded-full ${
-                      localConfig.type === "tcp"
-                        ? "bg-emerald-400"
-                        : servers.some((s) => s.capabilities.tcp)
-                          ? "bg-gray-500"
-                          : "bg-gray-600"
-                    }`}
+                    className={`w-2 h-2 rounded-full ${localConfig.type === "tcp" ? "bg-emerald-400" : "bg-gray-500"}`}
                   />
                   <span className="font-medium">TCP</span>
-                  {!servers.some((s) => s.capabilities.tcp) && (
-                    <span className="text-xs text-gray-500 ml-1">(Unavailable)</span>
+                  {!isAuthenticated && hasTcpServers && (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-yellow-400"
+                    >
+                      <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  )}
+                  {isAuthenticated && hasTcpServers && (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-emerald-400"
+                    >
+                      <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                      <path d="m9 16 2 2 4-4" />
+                    </svg>
                   )}
                 </div>
               </label>
@@ -947,92 +974,137 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
             <p className="text-sm text-gray-400 mt-2">
               {localConfig.type === "http"
                 ? "Best for web applications and APIs. Uses HTTPS (port 443) or HTTP (port 80)."
-                : "For any TCP service like databases, game servers, or custom applications."}
+                : isAuthenticated
+                  ? "For any TCP service like databases, game servers, or custom applications."
+                  : "TCP forwarding requires authentication for security and abuse prevention."}
             </p>
 
-            {!servers.some((s) => (localConfig.type === "http" ? s.capabilities.http : s.capabilities.tcp)) && (
-              <div className="mt-3 p-3 bg-yellow-950 rounded-lg border border-yellow-800">
-                <div className="flex items-center gap-2">
+            {showTcpLoginPrompt && !isAuthenticated && (
+              <div className="mt-4 p-4 bg-blue-950 rounded-lg border border-blue-800">
+                <div className="flex items-start gap-3">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
+                    width="20"
+                    height="20"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className="text-yellow-400"
+                    className="text-blue-400 mt-0.5 flex-shrink-0"
                   >
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                    <line x1="12" x2="12" y1="9" y2="13" />
-                    <line x1="12" x2="12.01" y1="17" y2="17" />
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                   </svg>
-                  <p className="text-yellow-400 text-sm font-medium">
-                    No servers currently support {localConfig.type.toUpperCase()} forwarding
-                  </p>
+                  <div className="flex-1">
+                    <h4 className="text-blue-400 font-medium mb-2">TCP Forwarding Requires Sign In</h4>
+                    <p className="text-blue-300 text-sm mb-3">
+                      To prevent abuse and ensure service quality, TCP forwarding requires user authentication. This
+                      helps us maintain a reliable service for everyone.
+                    </p>
+                    <p className="text-blue-300 text-sm mb-4">
+                      TCP forwarding allows you to tunnel any TCP-based service like databases, game servers, SSH, and
+                      custom applications.
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <Link
+                        href="/login"
+                        className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                          <polyline points="10 17 15 12 10 7" />
+                          <line x1="15" x2="3" y1="12" y2="12" />
+                        </svg>
+                        Sign In to Continue
+                      </Link>
+                      <button
+                        onClick={() => {
+                          setShowTcpLoginPrompt(false)
+                          updateConfig({ type: "http", serverPort: 443 })
+                        }}
+                        className="text-blue-300 hover:text-blue-200 text-sm underline"
+                      >
+                        Use HTTP Instead
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 mb-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">Server Port (Internet Access)</label>
-              {localConfig.type === "http" ? (
-                <select
-                  value={localConfig.serverPort}
-                  onChange={(e) => updateConfig({ serverPort: Number.parseInt(e.target.value) })}
+          {!showTcpLoginPrompt && (
+            <div className="grid gap-4 md:grid-cols-2 mb-6">
+              <div>
+                <label className="block text-sm font-medium mb-2">Server Port (Internet Access)</label>
+                {localConfig.type === "http" ? (
+                  <select
+                    value={localConfig.serverPort}
+                    onChange={(e) => updateConfig({ serverPort: Number.parseInt(e.target.value) })}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white font-mono focus:border-emerald-500 focus:outline-none"
+                  >
+                    <option value={443}>443 (HTTPS)</option>
+                    <option value={80}>80 (HTTP)</option>
+                  </select>
+                ) : (
+                  <div className="space-y-2">
+                    <input
+                      type="number"
+                      value={localConfig.serverPort === 0 ? "" : localConfig.serverPort}
+                      onChange={(e) => updateConfig({ serverPort: Number.parseInt(e.target.value) || 0 })}
+                      className={`w-full bg-gray-800 border rounded-lg px-3 py-2 text-white font-mono focus:outline-none ${
+                        portError ? "border-red-500 focus:border-red-400" : "border-gray-700 focus:border-emerald-500"
+                      }`}
+                      placeholder="0 for auto-assign"
+                      min="0"
+                      max="65535"
+                    />
+                    {portError && <p className="text-xs text-red-400">{portError}</p>}
+                    {localConfig.serverPort === 0 && (
+                      <p className="text-xs text-blue-400">Server will automatically assign an available port</p>
+                    )}
+                  </div>
+                )}
+                <p className="text-xs text-gray-400 mt-1">
+                  {localConfig.type === "http"
+                    ? "Standard web ports"
+                    : localConfig.serverPort === 0
+                      ? "Server will assign an available port automatically"
+                      : "Port accessible from the internet (1024+)"}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Local Port (Your Service)</label>
+                <input
+                  type="number"
+                  value={localConfig.localPort}
+                  onChange={(e) => updateConfig({ localPort: Number.parseInt(e.target.value) || 8000 })}
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white font-mono focus:border-emerald-500 focus:outline-none"
-                >
-                  <option value={443}>443 (HTTPS)</option>
-                  <option value={80}>80 (HTTP)</option>
-                </select>
-              ) : (
-                <div className="space-y-2">
-                  <input
-                    type="number"
-                    value={localConfig.serverPort === 0 ? "" : localConfig.serverPort}
-                    onChange={(e) => updateConfig({ serverPort: Number.parseInt(e.target.value) || 0 })}
-                    className={`w-full bg-gray-800 border rounded-lg px-3 py-2 text-white font-mono focus:outline-none ${
-                      portError ? "border-red-500 focus:border-red-400" : "border-gray-700 focus:border-emerald-500"
-                    }`}
-                    placeholder="0 for auto-assign"
-                    min="0"
-                    max="65535"
-                  />
-                  {portError && <p className="text-xs text-red-400">{portError}</p>}
-                  {localConfig.serverPort === 0 && (
-                    <p className="text-xs text-blue-400">Server will automatically assign an available port</p>
-                  )}
-                </div>
-              )}
-              <p className="text-xs text-gray-400 mt-1">
-                {localConfig.type === "http"
-                  ? "Standard web ports"
-                  : localConfig.serverPort === 0
-                    ? "Server will assign an available port automatically"
-                    : "Port accessible from the internet (1024+)"}
-              </p>
+                  placeholder="8000"
+                  min="1"
+                  max="65535"
+                />
+                <p className="text-xs text-gray-400 mt-1">Port where your local service is running</p>
+              </div>
             </div>
+          )}
 
-            <div>
-              <label className="block text-sm font-medium mb-2">Local Port (Your Service)</label>
-              <input
-                type="number"
-                value={localConfig.localPort}
-                onChange={(e) => updateConfig({ localPort: Number.parseInt(e.target.value) || 8000 })}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white font-mono focus:border-emerald-500 focus:outline-none"
-                placeholder="8000"
-                min="1"
-                max="65535"
-              />
-              <p className="text-xs text-gray-400 mt-1">Port where your local service is running</p>
-            </div>
-          </div>
-
-          {selectedServer && (
+          {!showTcpLoginPrompt && selectedServer && (
             <div className="mb-6">
               <label className="block text-sm font-medium mb-2">SSH Command</label>
               <div className="relative">
@@ -1081,30 +1153,33 @@ export default function TunnelConfig({ config, onConfigChange, selectedServer, o
             </div>
           )}
 
-          <div className="p-3 bg-gray-800 rounded-lg border border-gray-700">
-            <p className="text-sm text-gray-300">
-              <span className="font-medium">Traffic Flow:</span> Internet →{" "}
-              <span className="text-emerald-400 font-mono">
-                {selectedServer ? selectedServer.location : "Server"}:
-                {localConfig.serverPort === 0 ? "auto" : localConfig.serverPort}
-              </span>{" "}
-              → <span className="text-emerald-400 font-mono">localhost:{localConfig.localPort}</span>
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              {localConfig.type === "http" ? (
-                <>
-                  Your local service on port {localConfig.localPort} will be accessible via{" "}
-                  {localConfig.serverPort === 443 ? "HTTPS" : "HTTP"}
-                </>
-              ) : (
-                <>
-                  TCP traffic to server port {localConfig.serverPort === 0 ? "(auto-assigned)" : localConfig.serverPort}{" "}
-                  will be forwarded to your localhost:
-                  {localConfig.localPort}
-                </>
-              )}
-            </p>
-          </div>
+          {!showTcpLoginPrompt && (
+            <div className="p-3 bg-gray-800 rounded-lg border border-gray-700">
+              <p className="text-sm text-gray-300">
+                <span className="font-medium">Traffic Flow:</span> Internet →{" "}
+                <span className="text-emerald-400 font-mono">
+                  {selectedServer ? selectedServer.location : "Server"}:
+                  {localConfig.serverPort === 0 ? "auto" : localConfig.serverPort}
+                </span>{" "}
+                → <span className="text-emerald-400 font-mono">localhost:{localConfig.localPort}</span>
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {localConfig.type === "http" ? (
+                  <>
+                    Your local service on port {localConfig.localPort} will be accessible via{" "}
+                    {localConfig.serverPort === 443 ? "HTTPS" : "HTTP"}
+                  </>
+                ) : (
+                  <>
+                    TCP traffic to server port{" "}
+                    {localConfig.serverPort === 0 ? "(auto-assigned)" : localConfig.serverPort} will be forwarded to
+                    your localhost:
+                    {localConfig.localPort}
+                  </>
+                )}
+              </p>
+            </div>
+          )}
         </>
       )}
     </div>
