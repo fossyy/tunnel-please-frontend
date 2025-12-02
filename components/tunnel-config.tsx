@@ -43,34 +43,6 @@ const fetchServers = async (): Promise<Server[]> => {
 
   const mockServers: Server[] = [
     {
-      id: "us",
-      name: "United States",
-      location: "Chicago",
-      subdomain: "us.tunnl.live",
-      coordinates: [-87.6298, 41.8781],
-      ping: null,
-      status: "online",
-      pingStatus: "idle",
-      capabilities: {
-        http: true,
-        tcp: false,
-      },
-    },
-    {
-      id: "eu",
-      name: "Europe",
-      location: "Frankfurt",
-      subdomain: "eu.tunnl.live",
-      coordinates: [8.6821, 50.1109],
-      ping: null,
-      status: "online",
-      pingStatus: "idle",
-      capabilities: {
-        http: true,
-        tcp: false,
-      },
-    },
-    {
       id: "sgp",
       name: "Singapore",
       location: "Singapore",
@@ -90,28 +62,7 @@ const fetchServers = async (): Promise<Server[]> => {
         blockedPorts: [22, 80, 443, 3306, 5432, 6379, 2200],
         supportsAutoAssign: true,
       },
-    },
-    {
-      id: "id",
-      name: "Indonesia",
-      location: "Bogor",
-      subdomain: "id.tunnl.live",
-      coordinates: [106.8456, -6.595],
-      ping: null,
-      status: "online",
-      pingStatus: "idle",
-      capabilities: {
-        http: true,
-        tcp: true,
-      },
-      portRestrictions: {
-        allowedRanges: [
-          { min: 10000, max: 50000 },
-        ],
-        blockedPorts: [22, 80, 443, 3306, 5432, 6379, 2200],
-        supportsAutoAssign: true,
-      },
-    },
+    }
   ]
 
   return mockServers.filter((server) => server.status === "online")
@@ -125,76 +76,58 @@ const testServerPing = (
     const timeout = 5000
     let resolved = false
 
-    const pingUrl = `wss://ping.${server.subdomain}`
+    const pingUrl = `http://ping.${server.subdomain}`
 
-    try {
-      const ws = new WebSocket(pingUrl)
-
-      const timeoutId = setTimeout(() => {
-        if (!resolved) {
-          resolved = true
-          ws.close()
-          resolve({
-            server,
-            ping: null,
-            status: "timeout",
-          })
-        }
-      }, timeout)
-
-      ws.onopen = () => {
-        console.log(`Connected to ${pingUrl}`)
+    const timeoutId = setTimeout(() => {
+      if (!resolved) {
+        resolved = true
+        resolve({
+          server,
+          ping: null,
+          status: "timeout",
+        })
       }
+    }, timeout)
 
-      ws.onmessage = (event) => {
-        if (event.data === "pong" && !resolved) {
-          resolved = true
-          const ping = Date.now() - startTime
-          clearTimeout(timeoutId)
-          ws.close()
+    fetch(pingUrl, {
+      method: "HEAD",
+      cache: "no-cache",
+    })
+      .then((res) => {
+        if (resolved) return
 
-          resolve({
-            server,
-            ping,
-            status: "success",
-          })
-        }
-      }
+        resolved = true
+        clearTimeout(timeoutId)
 
-      ws.onclose = (event) => {
-        if (!resolved) {
-          resolved = true
-          clearTimeout(timeoutId)
-
+        if (!res.ok) {
           resolve({
             server,
             ping: null,
             status: "failed",
           })
+          return
         }
-      }
 
-      ws.onerror = (error) => {
-        if (!resolved) {
-          resolved = true
-          clearTimeout(timeoutId)
-          console.error(`WebSocket error for ${pingUrl}:`, error)
+        const ping = Date.now() - startTime
 
-          resolve({
-            server,
-            ping: null,
-            status: "failed",
-          })
-        }
-      }
-    } catch (error) {
-      console.error(`Failed to create WebSocket for ${pingUrl}:`, error)
-      resolve({
-        server,
-        ping: null,
-        status: "failed",
+        resolve({
+          server,
+          ping,
+          status: "success",
+        })
       })
-    }
+      .catch((err) => {
+        if (resolved) return
+        resolved = true
+        clearTimeout(timeoutId)
+
+        console.error(`HEAD ping error for ${pingUrl}:`, err)
+        resolve({
+          server,
+          ping: null,
+          status: "failed",
+        })
+      })
   })
 }
 
