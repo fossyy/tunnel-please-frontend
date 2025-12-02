@@ -76,7 +76,7 @@ const testServerPing = (
     const timeout = 5000
     let resolved = false
 
-    const pingUrl = `http://ping.${server.subdomain}`
+    const pingUrl = `https://ping.${server.subdomain}`
 
     const timeoutId = setTimeout(() => {
       if (!resolved) {
