@@ -43,6 +43,20 @@ const fetchServers = async (): Promise<Server[]> => {
 
   const mockServers: Server[] = [
     {
+      id: "us",
+      name: "United States",
+      location: "Chicago",
+      subdomain: "us.tunnl.live",
+      coordinates: [-87.6298, 41.8781],
+      ping: null,
+      status: "online",
+      pingStatus: "idle",
+      capabilities: {
+        http: true,
+        tcp: false,
+      },
+    },
+    {
       id: "sgp",
       name: "Singapore",
       location: "Singapore",
