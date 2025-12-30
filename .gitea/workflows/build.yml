@@ -5,6 +5,28 @@ on:
     branches:
       - main
       - staging
+    paths:
+      - 'app/**'
+      - 'pages/**'
+      - 'components/**'
+      - 'lib/**'
+      - 'public/**'
+      - '**/*.js'
+      - '**/*.jsx'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - 'next.config.js'
+      - 'next.config.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'pnpm-lock.yaml'
+      - 'yarn.lock'
+      - 'tsconfig.json'
+      - 'jsconfig.json'
+      - 'Dockerfile'
+      - 'Dockerfile.*'
+      - '.dockerignore'
+      - '.gitea/workflows/build.yml'
 
 jobs:
   build-and-push:
