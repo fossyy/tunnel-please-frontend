@@ -2,6 +2,8 @@
   "extends": [
     "config:recommended"
   ],
+  "prConcurrentLimit": 1,
+  "prHourlyLimit": 1,
   "packageRules": [
     {
       "matchUpdateTypes": [
@@ -10,6 +12,8 @@
         "pin",
         "digest"
       ],
+      "matchPackagePatterns": ["*"],
+      "groupName": "all-dependencies",
       "automerge": true,
       "baseBranchPatterns": [
         "staging"
