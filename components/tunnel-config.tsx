@@ -55,7 +55,35 @@ const fetchServers = async (): Promise<Server[]> => {
       pingStatus: "idle",
       capabilities: {
         http: true,
-        tcp: false,
+        tcp: true,
+      },
+      portRestrictions: {
+        allowedRanges: [
+          { min: 20000, max: 21000 },
+        ],
+        blockedPorts: [8080, 8443, 9000],
+        supportsAutoAssign: true,
+      },
+    },
+    {
+      id: "fra",
+      name: "Frankfurt",
+      location: "Germany",
+      subdomain: "eu.tunnl.live",
+      coordinates: [8.6821, 50.1109],
+      ping: null,
+      status: "online",
+      pingStatus: "idle",
+      capabilities: {
+        http: true,
+        tcp: true,
+      },
+      portRestrictions: {
+        allowedRanges: [
+          { min: 20000, max: 21000 },
+        ],
+        blockedPorts: [8080, 8443, 9000],
+        supportsAutoAssign: true,
       },
     },
     {
@@ -73,8 +101,7 @@ const fetchServers = async (): Promise<Server[]> => {
       },
       portRestrictions: {
         allowedRanges: [
-          { min: 8000, max: 8999 },
-          { min: 9000, max: 9999 },
+          { min: 20000, max: 21000 },
         ],
         blockedPorts: [8080, 8443, 9000],
         supportsAutoAssign: true,
@@ -736,19 +763,17 @@ export default function TunnelConfig({
                         onServerSelect(server)
                       }
                     }}
-                    className={`p-3 rounded-lg border transition-all duration-200 ${
-                      selectedServer?.id === server.id
+                    className={`p-3 rounded-lg border transition-all duration-200 ${selectedServer?.id === server.id
                         ? "bg-emerald-950 border-emerald-500"
                         : !canSelect
                           ? "bg-red-950 border-red-800 cursor-not-allowed opacity-75"
                           : "bg-gray-800 border-gray-700 hover:border-gray-600 cursor-pointer"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <h5 className="font-medium text-sm">{server.name}</h5>
                       <div
-                        className={`w-2 h-2 rounded-full ${
-                          selectedServer?.id === server.id
+                        className={`w-2 h-2 rounded-full ${selectedServer?.id === server.id
                             ? "bg-emerald-400"
                             : !canSelect
                               ? "bg-red-400"
@@ -761,7 +786,7 @@ export default function TunnelConfig({
                                       ? "bg-orange-400"
                                       : "bg-red-400"
                                 : "bg-gray-600"
-                        }`}
+                          }`}
                       />
                     </div>
                     <p className="text-xs text-gray-400 mb-1">{server.location}</p>
@@ -775,9 +800,8 @@ export default function TunnelConfig({
                         )}
                         {server.capabilities.tcp && (
                           <span
-                            className={`text-xs px-1.5 py-0.5 rounded ${
-                              isAuthenticated ? "bg-purple-900 text-purple-300" : "bg-gray-700 text-gray-400"
-                            }`}
+                            className={`text-xs px-1.5 py-0.5 rounded ${isAuthenticated ? "bg-purple-900 text-purple-300" : "bg-gray-700 text-gray-400"
+                              }`}
                           >
                             TCP{!isAuthenticated && " 🔒"}
                           </span>
@@ -844,11 +868,10 @@ export default function TunnelConfig({
                   className="sr-only"
                 />
                 <div
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
-                    localConfig.type === "http"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${localConfig.type === "http"
                       ? "bg-emerald-950 border-emerald-500 text-emerald-400"
                       : "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
-                  }`}
+                    }`}
                 >
                   <div
                     className={`w-2 h-2 rounded-full ${localConfig.type === "http" ? "bg-emerald-400" : "bg-gray-500"}`}
@@ -868,15 +891,14 @@ export default function TunnelConfig({
                   className="sr-only"
                 />
                 <div
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
-                    localConfig.type === "tcp"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${localConfig.type === "tcp"
                       ? "bg-emerald-950 border-emerald-500 text-emerald-400"
                       : !isAuthenticated && hasTcpServers
                         ? "bg-gray-800 border-gray-700 text-gray-400 cursor-pointer hover:border-yellow-600"
                         : isAuthenticated && hasTcpServers
                           ? "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
                           : "bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed opacity-50"
-                  }`}
+                    }`}
                 >
                   <div
                     className={`w-2 h-2 rounded-full ${localConfig.type === "tcp" ? "bg-emerald-400" : "bg-gray-500"}`}
@@ -1016,9 +1038,8 @@ export default function TunnelConfig({
                       type="number"
                       value={localConfig.serverPort === 0 ? "" : localConfig.serverPort}
                       onChange={(e) => updateConfig({ serverPort: Number.parseInt(e.target.value) || 0 })}
-                      className={`w-full bg-gray-800 border rounded-lg px-3 py-2 text-white font-mono focus:outline-none ${
-                        portError ? "border-red-500 focus:border-red-400" : "border-gray-700 focus:border-emerald-500"
-                      }`}
+                      className={`w-full bg-gray-800 border rounded-lg px-3 py-2 text-white font-mono focus:outline-none ${portError ? "border-red-500 focus:border-red-400" : "border-gray-700 focus:border-emerald-500"
+                        }`}
                       placeholder="0 for auto-assign"
                       min="0"
                       max="65535"
