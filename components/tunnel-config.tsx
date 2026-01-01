@@ -5,7 +5,7 @@ import { ComposableMap, Geographies, Geography, Marker } from "react-simple-maps
 import Link from "next/link"
 
 export interface TunnelConfig {
-  type: "http" | "tcp"
+  type: "http" | "tcp" | "custom-domain"
   serverPort: number
   localPort: number
 }
@@ -194,7 +194,7 @@ export default function TunnelConfig({
   const [serverError, setServerError] = useState<string | null>(null)
   const [portError, setPortError] = useState<string | null>(null)
   const [pendingServerSelection, setPendingServerSelection] = useState<Server | null>(null)
-  const [showTcpLoginPrompt, setShowTcpLoginPrompt] = useState(false)
+  const [showCustomDomainLoginPrompt, setShowCustomDomainLoginPrompt] = useState(false)
 
   useEffect(() => {
     const loadServers = async () => {
@@ -269,7 +269,7 @@ export default function TunnelConfig({
               s.ping !== null &&
               s.capabilities.http &&
               ((localConfig.type === "http" && s.capabilities.http) ||
-                (localConfig.type === "tcp" && s.capabilities.tcp && isAuthenticated)),
+                (localConfig.type === "tcp" && s.capabilities.tcp)),
           )
 
           if (compatibleServers.length > 0) {
@@ -302,7 +302,7 @@ export default function TunnelConfig({
       onServerSelect(pendingServerSelection)
       setPendingServerSelection(null)
 
-      if (localConfig.type === "tcp" && (!pendingServerSelection.capabilities.tcp || !isAuthenticated)) {
+      if (localConfig.type === "tcp" && !pendingServerSelection.capabilities.tcp) {
         updateConfig({ type: "http", serverPort: 443 })
       }
     }
@@ -353,13 +353,18 @@ export default function TunnelConfig({
   }
 
   const handleTcpSelection = () => {
+    setShowCustomDomainLoginPrompt(false)
+    updateConfig({ type: "tcp", serverPort: 0 })
+  }
+
+  const handleCustomDomainSelection = () => {
     if (!isAuthenticated) {
-      setShowTcpLoginPrompt(true)
+      setShowCustomDomainLoginPrompt(true)
       return
     }
 
-    updateConfig({ type: "tcp", serverPort: 0 })
-    setShowTcpLoginPrompt(false)
+    // Navigate to custom domain configuration page
+    window.location.href = "/custom-domain"
   }
 
   const generateCommand = () => {
@@ -507,7 +512,7 @@ export default function TunnelConfig({
     if (localConfig.type === "http" && !server.capabilities.http) {
       return false
     }
-    if (localConfig.type === "tcp" && (!server.capabilities.tcp || !isAuthenticated)) {
+    if (localConfig.type === "tcp" && !server.capabilities.tcp) {
       return false
     }
 
@@ -521,9 +526,6 @@ export default function TunnelConfig({
     if (localConfig.type === "tcp" && !server.capabilities.tcp) {
       return "TCP not supported"
     }
-    if (localConfig.type === "tcp" && !isAuthenticated) {
-      return "Sign in required for TCP"
-    }
     if (localConfig.type === "http" && !server.capabilities.http) {
       return "HTTP not supported"
     }
@@ -533,7 +535,7 @@ export default function TunnelConfig({
   const getCompatibleServers = () => {
     return servers.filter((server) => {
       if (localConfig.type === "http") return server.capabilities.http
-      if (localConfig.type === "tcp") return server.capabilities.tcp && isAuthenticated
+      if (localConfig.type === "tcp") return server.capabilities.tcp
       return true
     })
   }
@@ -610,13 +612,10 @@ export default function TunnelConfig({
               </svg>
               <p className="text-yellow-400 font-medium">
                 No servers support {localConfig.type.toUpperCase()} forwarding
-                {!isAuthenticated && localConfig.type === "tcp" && " for guest users"}
               </p>
             </div>
             <p className="text-yellow-300 text-sm">
-              {!isAuthenticated && localConfig.type === "tcp"
-                ? "Please sign in to access TCP forwarding or switch to HTTP/HTTPS forwarding."
-                : "Please switch to HTTP/HTTPS forwarding or wait for TCP-compatible servers to come online."}
+              Please switch to HTTP/HTTPS forwarding or wait for compatible servers to come online.
             </p>
           </div>
         )}
@@ -799,17 +798,14 @@ export default function TunnelConfig({
                           <span className="text-xs bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded">HTTP</span>
                         )}
                         {server.capabilities.tcp && (
-                          <span
-                            className={`text-xs px-1.5 py-0.5 rounded ${isAuthenticated ? "bg-purple-900 text-purple-300" : "bg-gray-700 text-gray-400"
-                              }`}
-                          >
-                            TCP{!isAuthenticated && " 🔒"}
+                          <span className="text-xs bg-purple-900 text-purple-300 px-1.5 py-0.5 rounded">
+                            TCP
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {server.capabilities.tcp && isAuthenticated && (
+                    {server.capabilities.tcp && (
                       <div className="mb-2">
                         <p className="text-xs text-gray-300">{getPortRestrictionInfo(server)}</p>
                       </div>
@@ -864,7 +860,10 @@ export default function TunnelConfig({
                   name="forwardingType"
                   value="http"
                   checked={localConfig.type === "http"}
-                  onChange={() => updateConfig({ type: "http", serverPort: 443 })}
+                  onChange={() => {
+                    setShowCustomDomainLoginPrompt(false)
+                    updateConfig({ type: "http", serverPort: 443 })
+                  }}
                   className="sr-only"
                 />
                 <div
@@ -887,24 +886,43 @@ export default function TunnelConfig({
                   value="tcp"
                   checked={localConfig.type === "tcp"}
                   onChange={handleTcpSelection}
-                  disabled={!isAuthenticated && !hasTcpServers}
                   className="sr-only"
                 />
                 <div
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${localConfig.type === "tcp"
                       ? "bg-emerald-950 border-emerald-500 text-emerald-400"
-                      : !isAuthenticated && hasTcpServers
-                        ? "bg-gray-800 border-gray-700 text-gray-400 cursor-pointer hover:border-yellow-600"
-                        : isAuthenticated && hasTcpServers
-                          ? "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
-                          : "bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed opacity-50"
+                      : "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
                     }`}
                 >
                   <div
                     className={`w-2 h-2 rounded-full ${localConfig.type === "tcp" ? "bg-emerald-400" : "bg-gray-500"}`}
                   />
                   <span className="font-medium">TCP</span>
-                  {!isAuthenticated && hasTcpServers && (
+                </div>
+              </label>
+
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name="forwardingType"
+                  value="custom-domain"
+                  checked={localConfig.type === "custom-domain"}
+                  onChange={handleCustomDomainSelection}
+                  className="sr-only"
+                />
+                <div
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${localConfig.type === "custom-domain"
+                      ? "bg-emerald-950 border-emerald-500 text-emerald-400"
+                      : !isAuthenticated
+                        ? "bg-gray-800 border-gray-700 text-gray-400 cursor-pointer hover:border-yellow-600"
+                        : "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
+                    }`}
+                >
+                  <div
+                    className={`w-2 h-2 rounded-full ${localConfig.type === "custom-domain" ? "bg-emerald-400" : "bg-gray-500"}`}
+                  />
+                  <span className="font-medium">Custom Domain</span>
+                  {!isAuthenticated && (
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="14"
@@ -921,7 +939,7 @@ export default function TunnelConfig({
                       <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                     </svg>
                   )}
-                  {isAuthenticated && hasTcpServers && (
+                  {isAuthenticated && (
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="14"
@@ -946,12 +964,14 @@ export default function TunnelConfig({
             <p className="text-sm text-gray-400 mt-2">
               {localConfig.type === "http"
                 ? "Best for web applications and APIs. Uses HTTPS (port 443) or HTTP (port 80)."
-                : isAuthenticated
+                : localConfig.type === "tcp"
                   ? "For any TCP service like databases, game servers, or custom applications."
-                  : "TCP forwarding requires authentication for security and abuse prevention."}
+                  : !isAuthenticated
+                    ? "Use your own domain name for professional tunneling. Requires authentication."
+                    : "Configure and use your own custom domain for tunneling."}
             </p>
 
-            {showTcpLoginPrompt && !isAuthenticated && (
+            {showCustomDomainLoginPrompt && !isAuthenticated && (
               <div className="mt-4 p-4 bg-blue-950 rounded-lg border border-blue-800">
                 <div className="flex items-start gap-3">
                   <svg
@@ -966,20 +986,19 @@ export default function TunnelConfig({
                     strokeLinejoin="round"
                     className="text-blue-400 mt-0.5 flex-shrink-0"
                   >
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+                    <path d="M2 12h20" />
                   </svg>
                   <div className="flex-1">
-                    <h4 className="text-blue-400 font-medium mb-2">TCP Forwarding Requires Sign In</h4>
+                    <h4 className="text-blue-400 font-medium mb-2">Custom Domain Requires Sign In</h4>
                     <p className="text-blue-300 text-sm mb-3">
-                      To prevent abuse and ensure service quality, TCP forwarding requires user authentication. This
-                      helps us maintain a reliable service for everyone.
+                      Custom domain support allows you to use your own domain name for professional tunneling. This
+                      feature requires authentication to verify domain ownership and manage DNS settings.
                     </p>
                     <p className="text-blue-300 text-sm mb-4">
-                      TCP forwarding allows you to tunnel any TCP-based service like databases, game servers, SSH, and
-                      custom applications.
+                      With a custom domain, you can create branded tunnel URLs like tunnel.yourdomain.com instead of
+                      using our default subdomains.
                     </p>
                     <div className="flex items-center gap-3">
                       <Link
@@ -1005,7 +1024,7 @@ export default function TunnelConfig({
                       </Link>
                       <button
                         onClick={() => {
-                          setShowTcpLoginPrompt(false)
+                          setShowCustomDomainLoginPrompt(false)
                           updateConfig({ type: "http", serverPort: 443 })
                         }}
                         className="text-blue-300 hover:text-blue-200 text-sm underline"
@@ -1019,7 +1038,7 @@ export default function TunnelConfig({
             )}
           </div>
 
-          {!showTcpLoginPrompt && (
+          {!showCustomDomainLoginPrompt && (
             <div className="grid gap-4 md:grid-cols-2 mb-6">
               <div>
                 <label className="block text-sm font-medium mb-2">Server Port (Internet Access)</label>
@@ -1075,7 +1094,7 @@ export default function TunnelConfig({
             </div>
           )}
 
-          {!showTcpLoginPrompt && selectedServer && (
+          {!showCustomDomainLoginPrompt && selectedServer && (
             <div className="mb-6">
               <label className="block text-sm font-medium mb-2">SSH Command</label>
               <div className="relative">
@@ -1124,7 +1143,7 @@ export default function TunnelConfig({
             </div>
           )}
 
-          {!showTcpLoginPrompt && (
+          {!showCustomDomainLoginPrompt && (
             <div className="p-3 bg-gray-800 rounded-lg border border-gray-700">
               <p className="text-sm text-gray-300">
                 <span className="font-medium">Traffic Flow:</span> Internet →{" "}
