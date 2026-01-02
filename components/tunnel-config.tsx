@@ -38,6 +38,7 @@ interface TunnelConfigProps {
   selectedServer: Server | null
   onServerSelect: (server: Server) => void
   isAuthenticated?: boolean
+  userId?: string
 }
 
 const fetchServers = async (): Promise<Server[]> => {
@@ -181,6 +182,7 @@ export default function TunnelConfig({
   selectedServer,
   onServerSelect,
   isAuthenticated = false,
+  userId,
 }: TunnelConfigProps) {
   const [localConfig, setLocalConfig] = useState<TunnelConfig>({
     ...config,
@@ -363,14 +365,14 @@ export default function TunnelConfig({
       return
     }
 
-    // Navigate to custom domain configuration page
     window.location.href = "/custom-domain"
   }
 
   const generateCommand = () => {
     if (!selectedServer) return ""
     const { serverPort, localPort } = localConfig
-    return `ssh ${selectedServer.subdomain} -p 2200 -R ${serverPort}:localhost:${localPort}`
+    const target = isAuthenticated && userId ? `${userId}@${selectedServer.subdomain}` : selectedServer.subdomain
+    return `ssh ${target} -p 2200 -R ${serverPort}:localhost:${localPort}`
   }
 
   const copyToClipboard = () => {
@@ -853,8 +855,8 @@ export default function TunnelConfig({
         <>
           <div className="mb-6">
             <label className="block text-sm font-medium mb-3">Forwarding Type</label>
-            <div className="flex gap-4">
-              <label className="flex items-center cursor-pointer">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <label className="flex w-full items-center cursor-pointer sm:w-auto">
                 <input
                   type="radio"
                   name="forwardingType"
@@ -867,7 +869,7 @@ export default function TunnelConfig({
                   className="sr-only"
                 />
                 <div
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${localConfig.type === "http"
+                  className={`flex w-full items-center gap-2 rounded-lg border px-4 py-2 transition-all sm:w-auto ${localConfig.type === "http"
                       ? "bg-emerald-950 border-emerald-500 text-emerald-400"
                       : "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
                     }`}
@@ -879,7 +881,7 @@ export default function TunnelConfig({
                 </div>
               </label>
 
-              <label className="flex items-center cursor-pointer">
+              <label className="flex w-full items-center cursor-pointer sm:w-auto">
                 <input
                   type="radio"
                   name="forwardingType"
@@ -889,7 +891,7 @@ export default function TunnelConfig({
                   className="sr-only"
                 />
                 <div
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${localConfig.type === "tcp"
+                  className={`flex w-full items-center gap-2 rounded-lg border px-4 py-2 transition-all sm:w-auto ${localConfig.type === "tcp"
                       ? "bg-emerald-950 border-emerald-500 text-emerald-400"
                       : "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
                     }`}
@@ -901,7 +903,7 @@ export default function TunnelConfig({
                 </div>
               </label>
 
-              <label className="flex items-center cursor-pointer">
+              <label className="flex w-full items-center cursor-pointer sm:w-auto">
                 <input
                   type="radio"
                   name="forwardingType"
@@ -911,7 +913,7 @@ export default function TunnelConfig({
                   className="sr-only"
                 />
                 <div
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${localConfig.type === "custom-domain"
+                  className={`flex w-full items-center gap-2 rounded-lg border px-4 py-2 transition-all sm:w-auto ${localConfig.type === "custom-domain"
                       ? "bg-emerald-950 border-emerald-500 text-emerald-400"
                       : !isAuthenticated
                         ? "bg-gray-800 border-gray-700 text-gray-400 cursor-pointer hover:border-yellow-600"

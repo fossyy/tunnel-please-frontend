@@ -1,47 +1,35 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import TunnelConfig, { type TunnelConfig as TunnelConfigType, type Server } from "@/components/tunnel-config"
 import Link from "next/link"
-import { authClient } from "@/lib/auth-client";
 import UserMenu from "@/components/user-menu"
-import { redirect, RedirectType } from 'next/navigation'
+import { authClient } from "@/lib/auth-client"
 
-const defaultConfig: TunnelConfigType = {
-  type: "http",
-  serverPort: 443,
-  localPort: 8000,
-}
-
-export default function Home() {
-  const [selectedServer, setSelectedServer] = useState<Server | null>(null)
-  const [tunnelConfig, setTunnelConfig] = useState<TunnelConfigType>(defaultConfig)
-  type SessionData = Awaited<ReturnType<typeof authClient.getSession>>;
-  const [logedin, setLogedin] = useState<SessionData | null>(null)
+export default function SettingsPage() {
+  type SessionResponse = Awaited<ReturnType<typeof authClient.getSession>>
+  const [session, setSession] = useState<SessionResponse["data"] | null>(null)
+  const [requireAuth, setRequireAuth] = useState(true)
+  const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    const fetchData = async () => {
+    const loadSession = async () => {
       try {
         const result = await authClient.getSession()
-        if (result.data != null) {
-          setLogedin(result.data.user);
+        if (result.data) {
+          setSession(result.data)
         }
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error("Failed to load session", error)
       }
-    };
+    }
 
-    fetchData();
-  }, []);
+    loadSession()
+  }, [])
 
-  const logout = async() => {
-    await authClient.signOut({
-      fetchOptions: {
-        onSuccess: () => {
-          redirect('/login', RedirectType.replace)
-        }
-      }
-    })
+  const handleToggle = (value: boolean) => {
+    setRequireAuth(value)
+    setMessage(value ? "Authentication required for tunnel requests" : "Authentication not required for tunnel requests")
+    setTimeout(() => setMessage(null), 2500)
   }
 
   return (
@@ -50,7 +38,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width={20} height={18} >
+              <svg xmlns="http://www.w3.org/2000/svg" width={20} height={18}>
               <path
                 d="M8.52 4c.296.02.574.086.863.164.09.027.18.05.27.074.066.02.066.02.132.035.29.079.578.149.871.211.332.075.66.153.989.235.492.125.984.246 1.48.355.344.078.684.16 1.027.246.11.028.215.051.325.078.402.098.8.196 1.203.297l.953.235c.023.008.05.011.074.02.16.038.32.073.48.109 1.305.285 1.305.285 1.688.52.031.015.059.034.09.054.262.168.422.37.586.637l.047.074c.238.414.187 1.015.187 1.48v1.649c0 .609-.023 1.144-.445 1.613-.39.367-.871.52-1.367.684-.059.02-.118.039-.18.062-.086.027-.168.059-.254.086-.176.059-.348.121-.523.184a8.12 8.12 0 0 1-.52.175c-.164.051-.324.114-.484.172-.102.04-.2.07-.301.102-.262.078-.52.168-.774.261-.652.231-1.308.458-1.964.68-.2.067-.399.133-.598.203a249.724 249.724 0 0 1-1.176.403c-.136.047-.273.093-.41.136-.05.02-.101.036-.156.055-.067.024-.137.047-.207.07-.04.012-.082.028-.121.04-.098.023-.098.023-.211-.016V12.69c.691-.175.691-.175.937-.23.028-.004.055-.012.086-.016.086-.02.176-.039.266-.058l.191-.04c.387-.085.774-.163 1.16-.238.356-.066.707-.144 1.059-.222.352-.078.703-.153 1.059-.215.355-.067.71-.137 1.062-.215.043-.008.086-.02.133-.027.515-.098.515-.098.918-.414.172-.278.152-.59.152-.91V9.98c.004-.09.004-.175.004-.261v-.657c.004-.039.004-.078.004-.117 0-.308-.05-.597-.203-.867-.067-.047-.067-.047-.149-.078l-.082-.04a.575.575 0 0 0-.086-.038l-.082-.04a1.447 1.447 0 0 0-.46-.093c-.036-.004-.07-.004-.106-.008-.039-.004-.074-.008-.113-.008a17.593 17.593 0 0 1-.766-.082c-.336-.043-.672-.062-1.012-.086-.261-.015-.52-.039-.777-.066-.344-.039-.687-.062-1.035-.082-.348-.023-.7-.05-1.047-.086-.332-.031-.668-.047-1-.062a4.771 4.771 0 0 1-.187-.61c-.207-.879-.653-1.832-1.356-2.41-.11-.098-.11-.098-.144-.207V4Zm0 0"
                 style={{
@@ -398,169 +386,7 @@ export default function Home() {
                 style={{
                   stroke: "none",
                   fillRule: "nonzero",
-                  fill: "#a8a8a6",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="m3.64 3.578.075.04c-.024.01-.047.023-.074.034a.717.717 0 0 1-.094.051.717.717 0 0 1-.094.05c-.086.052-.086.052-.113.169-.012-.035-.024-.074-.04-.113-.023-.012-.046-.028-.073-.04.066-.035.136-.066.203-.097.035-.02.074-.04.113-.055a.727.727 0 0 1 .098-.039Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#a3a2a2",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M1.238 15c.125.012.246.023.375.04v.038c-.199.024-.394.05-.601.074.113-.074.113-.074.226-.074V15Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#999998",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M3.527 5.73h.075c-.012.125-.04.157-.133.243-.031.02-.059.043-.09.066v-.156h.074c.024-.051.047-.102.074-.153Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#bbbab9",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="m6.004 3.348.18.011.097.008c.098.016.098.016.246.094h-.523v-.113Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#b0afac",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M9.367 15.613h.094c.035 0 .035 0 .07.004-.129.086-.222.098-.375.113-.011-.023-.023-.05-.039-.078.09-.043.149-.039.25-.039Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#a9a6a4",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M15.984 9.77c.012.023.024.05.04.078-.036.082-.036.082-.075.152h-.226c-.012-.023-.024-.05-.04-.078l.11-.012c.129-.012.129-.012.191-.14Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#4e7d64",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M12.082 8.04c.023.01.05.023.074.038-.14.262-.14.262-.222.305a.595.595 0 0 1 .148-.344Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#51836d",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M12.047 14.578c.168-.015.168-.015.254.055.015.02.027.039.043.058-.086.028-.172.051-.262.079.012-.051.023-.102.04-.153l-.075-.039Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#aea9a6",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M17.86 12.77c-.13.09-.223.097-.376.113.028-.012.051-.024.078-.035v-.078c.106-.055.184-.024.297 0Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#b4b1b0",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M15.496 9.46h.074l-.035.349h-.074c-.031-.114-.047-.172-.004-.282.012-.023.027-.043.04-.066Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#74b698",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="m16.059 9.422-.075.117c-.015-.02-.03-.035-.046-.055a.72.72 0 0 0-.215-.136c.148-.063.21-.012.336.074Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#53866a",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M16.809 8c.05.012.101.023.152.04v.077h.113l.035.153c-.035.02-.035.02-.074.039-.113-.145-.113-.145-.113-.23-.035-.017-.074-.028-.113-.04V8Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#afadab",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M7.953 10.96c-.035.013-.07.02-.11.032a3.353 3.353 0 0 1-.113.047c-.011.04-.027.074-.039.113a1.343 1.343 0 0 0-.074-.035c.04-.117.04-.117.125-.164.102-.031.102-.031.211.008Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#979696",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M9.906 6.152c.149.078.149.078.227.157l-.078.039c-.024.05-.047.101-.075.152-.023-.113-.046-.227-.074-.348Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#b7b5b5",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M10.133 4.383c.152.02.277.035.41.117-.121.027-.121.027-.262.04-.09-.075-.09-.075-.148-.157Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#bab8b7",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M8.594 4.04c.035.01.074.022.113.038.023.078.023.078.035.152-.113 0-.113 0-.187-.039.011-.05.027-.101.039-.152Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#d3d1d1",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M15.309 11.04c.136.01.273.023.414.038v.04c-.137.01-.274.023-.414.034v-.113Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#3f7154",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M13.695 9.383v.039c-.039.012-.082.023-.125.035-.136.035-.136.035-.25.121v-.156c.13-.04.242-.04.375-.04Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#3e6854",
+                  fill: "#e5e2e1",
                   fillOpacity: 1,
                 }}
               />
@@ -571,8 +397,22 @@ export default function Home() {
             </div>
 
             <div className="flex items-center gap-4">
-              {logedin != null ? (
-                <UserMenu user={logedin} onSignOut={logout} />
+              {session?.user ? (
+                <UserMenu
+                  user={{
+                    name: session.user.name ?? "User",
+                    email: session.user.email ?? "",
+                    image: session.user.image ?? undefined,
+                  }}
+                  onSignOut={async () => {
+                    try {
+                      await authClient.signOut()
+                      setSession(null)
+                    } catch (error) {
+                      console.error("Error signing out", error)
+                    }
+                  }}
+                />
               ) : (
                 <>
                   <Link
@@ -622,106 +462,46 @@ export default function Home() {
           </div>
         </div>
       </header>
-      <main className="flex-1 flex flex-col items-center justify-center px-4 py-8">
-        <div className="w-full max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl mb-6">
-              <span className="text-emerald-400">tunnl</span>.live
-            </h1>
-            <p className="text-lg text-gray-400 md:text-xl max-w-2xl mx-auto">
-              Expose your local services to the internet securely with our fast and reliable SSH tunneling service.
-            </p>
+
+      <main className="flex-1">
+        <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold">Settings</h1>
+            <p className="text-sm text-gray-400">Control how tunnels can be requested.</p>
           </div>
 
-          <TunnelConfig
-            config={tunnelConfig}
-            onConfigChange={setTunnelConfig}
-            selectedServer={selectedServer}
-            onServerSelect={setSelectedServer}
-            isAuthenticated={logedin != null ? true : false}
-            userId={logedin?.id}
-          />
-
-          <div className="max-w-3xl mx-auto">
-            <div className="grid gap-8 md:grid-cols-3 mb-16">
-              <div className="bg-gray-900 p-6 rounded-lg border border-gray-800">
-                <div className="mb-4 inline-block rounded-full bg-emerald-950 p-3">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-emerald-400"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
-                    <path d="M2 12h20" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold mb-2">Global Network</h3>
-                <p className="text-gray-400">
-                  Choose from servers in US, Singapore, and Indonesia for optimal performance.
-                </p>
-              </div>
-              <div className="bg-gray-900 p-6 rounded-lg border border-gray-800">
-                <div className="mb-4 inline-block rounded-full bg-emerald-950 p-3">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-emerald-400"
-                  >
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold mb-2">Secure by Default</h3>
-                <p className="text-gray-400">
-                  End-to-end encryption with SSH ensures your data remains private and secure.
-                </p>
-              </div>
-              <div className="bg-gray-900 p-6 rounded-lg border border-gray-800">
-                <div className="mb-4 inline-block rounded-full bg-emerald-950 p-3">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-emerald-400"
-                  >
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1-2-2h6" />
-                    <polyline points="15 3 21 3 21 9" />
-                    <line x1="10" x2="21" y1="14" y2="3" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold mb-2">Flexible Configuration</h3>
-                <p className="text-gray-400">
-                  Support for both HTTP/HTTPS and TCP tunneling with custom port configuration.
-                </p>
-              </div>
+          {message && (
+            <div className="rounded-lg border border-emerald-700 bg-emerald-900/40 px-4 py-3 text-sm text-emerald-200">
+              {message}
             </div>
+          )}
 
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold mb-4">100% Free Service</h2>
-              <p className="text-gray-400 max-w-2xl mx-auto">
-                No registration required. Just run the command and start using the tunnel immediately.
-              </p>
+          <div className="rounded-lg border border-gray-800 bg-gray-900 p-5 space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Tunnel Request Authentication</h2>
+                <p className="text-sm text-gray-400">Require users to be authenticated before they can request a tunnel.</p>
+              </div>
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                <span className="text-sm text-gray-300">{requireAuth ? "Required" : "Not required"}</span>
+                <input
+                  type="checkbox"
+                  checked={requireAuth}
+                  onChange={(e) => handleToggle(e.target.checked)}
+                  className="sr-only"
+                />
+                <span
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full border ${requireAuth ? "bg-emerald-600 border-emerald-500" : "bg-gray-700 border-gray-600"}`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${requireAuth ? "translate-x-5" : "translate-x-1"}`}
+                  />
+                </span>
+              </label>
             </div>
+            <p className="text-xs text-gray-500">
+              This toggle is local-only for now. Wire it to your backend when ready to enforce tunnel request policies.
+            </p>
           </div>
         </div>
       </main>
@@ -1076,169 +856,7 @@ export default function Home() {
                 style={{
                   stroke: "none",
                   fillRule: "nonzero",
-                  fill: "#a8a8a6",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="m3.64 3.578.075.04c-.024.01-.047.023-.074.034a.717.717 0 0 1-.094.051.717.717 0 0 1-.094.05c-.086.052-.086.052-.113.169-.012-.035-.024-.074-.04-.113-.023-.012-.046-.028-.073-.04.066-.035.136-.066.203-.097.035-.02.074-.04.113-.055a.727.727 0 0 1 .098-.039Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#a3a2a2",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M1.238 15c.125.012.246.023.375.04v.038c-.199.024-.394.05-.601.074.113-.074.113-.074.226-.074V15Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#999998",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M3.527 5.73h.075c-.012.125-.04.157-.133.243-.031.02-.059.043-.09.066v-.156h.074c.024-.051.047-.102.074-.153Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#bbbab9",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="m6.004 3.348.18.011.097.008c.098.016.098.016.246.094h-.523v-.113Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#b0afac",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M9.367 15.613h.094c.035 0 .035 0 .07.004-.129.086-.222.098-.375.113-.011-.023-.023-.05-.039-.078.09-.043.149-.039.25-.039Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#a9a6a4",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M15.984 9.77c.012.023.024.05.04.078-.036.082-.036.082-.075.152h-.226c-.012-.023-.024-.05-.04-.078l.11-.012c.129-.012.129-.012.191-.14Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#4e7d64",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M12.082 8.04c.023.01.05.023.074.038-.14.262-.14.262-.222.305a.595.595 0 0 1 .148-.344Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#51836d",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M12.047 14.578c.168-.015.168-.015.254.055.015.02.027.039.043.058-.086.028-.172.051-.262.079.012-.051.023-.102.04-.153l-.075-.039Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#aea9a6",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M17.86 12.77c-.13.09-.223.097-.376.113.028-.012.051-.024.078-.035v-.078c.106-.055.184-.024.297 0Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#b4b1b0",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M15.496 9.46h.074l-.035.349h-.074c-.031-.114-.047-.172-.004-.282.012-.023.027-.043.04-.066Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#74b698",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="m16.059 9.422-.075.117c-.015-.02-.03-.035-.046-.055a.72.72 0 0 0-.215-.136c.148-.063.21-.012.336.074Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#53866a",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M16.809 8c.05.012.101.023.152.04v.077h.113l.035.153c-.035.02-.035.02-.074.039-.113-.145-.113-.145-.113-.23-.035-.017-.074-.028-.113-.04V8Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#afadab",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M7.953 10.96c-.035.013-.07.02-.11.032a3.353 3.353 0 0 1-.113.047c-.011.04-.027.074-.039.113a1.343 1.343 0 0 0-.074-.035c.04-.117.04-.117.125-.164.102-.031.102-.031.211.008Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#979696",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M9.906 6.152c.149.078.149.078.227.157l-.078.039c-.024.05-.047.101-.075.152-.023-.113-.046-.227-.074-.348Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#b7b5b5",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M10.133 4.383c.152.02.277.035.41.117-.121.027-.121.027-.262.04-.09-.075-.09-.075-.148-.157Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#bab8b7",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M8.594 4.04c.035.01.074.022.113.038.023.078.023.078.035.152-.113 0-.113 0-.187-.039.011-.05.027-.101.039-.152Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#d3d1d1",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M15.309 11.04c.136.01.273.023.414.038v.04c-.137.01-.274.023-.414.034v-.113Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#3f7154",
-                  fillOpacity: 1,
-                }}
-              />
-              <path
-                d="M13.695 9.383v.039c-.039.012-.082.023-.125.035-.136.035-.136.035-.25.121v-.156c.13-.04.242-.04.375-.04Zm0 0"
-                style={{
-                  stroke: "none",
-                  fillRule: "nonzero",
-                  fill: "#3e6854",
+                  fill: "#e5e2e1",
                   fillOpacity: 1,
                 }}
               />
