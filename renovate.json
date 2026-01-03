@@ -14,9 +14,6 @@
       ],
       "groupName": "all-dependencies",
       "automerge": true,
-      "baseBranchPatterns": [
-        "staging"
-      ],
       "matchPackageNames": [
         "*"
       ]
