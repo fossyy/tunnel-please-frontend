@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import TunnelConfig, { type TunnelConfig as TunnelConfigType, type Server } from "@/components/tunnel-config"
 import { authClient } from "@/lib/auth-client"
 
@@ -80,6 +81,7 @@ type ActiveConnection = {
 }
 
 export default function DashboardClient({ initialActiveConnections }: DashboardClientProps) {
+  const router = useRouter()
   const [selectedServer, setSelectedServer] = useState<Server | null>(null)
   const [tunnelConfig, setTunnelConfig] = useState<TunnelConfigType>(defaultConfig)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
@@ -124,9 +126,13 @@ export default function DashboardClient({ initialActiveConnections }: DashboardC
               <h2 className="text-lg font-semibold">Active Connections</h2>
               <p className="text-sm text-gray-400">Monitor and manage your running tunnels</p>
             </div>
-            <Link href="/tunnel-not-found" className="text-sm text-emerald-400 hover:text-emerald-300">
-              View logs
-            </Link>
+            <button
+              type="button"
+              onClick={() => router.refresh()}
+              className="text-sm text-emerald-400 hover:text-emerald-300"
+            >
+              Refresh
+            </button>
           </div>
 
           {activeConnections.length === 0 ? (
