@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import TunnelConfig, { type TunnelConfig as TunnelConfigType, type Server } from "@/components/tunnel-config"
@@ -35,10 +35,9 @@ const toActiveConnection = (session: ApiSession): ActiveConnection => {
     status: session.active ? "connected" : "error",
     protocol: (session.forwarding_type || "http").toLowerCase(),
     serverLabel: session.node || "Unknown node",
+    node: session.node,
     remote: session.slug ? `${session.slug}.${session.node}` : session.node || "—",
     startedAgo,
-    latencyMs: null,
-    dataInOut: undefined,
   }
 }
 
@@ -72,12 +71,11 @@ type ActiveConnection = {
   status: ActiveConnectionStatus
   protocol: string
   serverLabel: string
+  node?: string
   remote: string
   localPort?: number
   serverPort?: number
   startedAgo?: string
-  latencyMs?: number | null
-  dataInOut?: string
 }
 
 export default function DashboardClient({ initialActiveConnections }: DashboardClientProps) {
@@ -90,6 +88,15 @@ export default function DashboardClient({ initialActiveConnections }: DashboardC
   )
   const { data: cachedSession } = authClient.useSession()
   const [session, setSession] = useState<SessionResponse["data"] | null>(cachedSession ?? null)
+  const [openActionId, setOpenActionId] = useState<string | null>(null)
+  const [slugModal, setSlugModal] = useState<{
+    connectionId: string
+    currentSlug: string
+    newSlug: string
+    node: string
+  } | null>(null)
+  const [slugError, setSlugError] = useState<string | null>(null)
+  const [slugSaving, setSlugSaving] = useState(false)
 
   useEffect(() => {
     setActiveConnections(initialActiveConnections.map(toActiveConnection))
@@ -104,10 +111,161 @@ export default function DashboardClient({ initialActiveConnections }: DashboardC
   const stopConnection = (id: string) => {
     setActiveConnections((prev) => prev.filter((conn) => conn.id !== id))
     setStatusMessage("Connection stopped")
+    setOpenActionId((current) => (current === id ? null : current))
   }
 
+  const openChangeSlugModal = (connection: ActiveConnection) => {
+    setSlugModal({
+      connectionId: connection.id,
+      currentSlug: connection.name,
+      newSlug: connection.name,
+      node: connection.node || connection.serverLabel,
+    })
+    setSlugError(null)
+    setOpenActionId(null)
+  }
+
+  const closeSlugModal = () => setSlugModal(null)
+
+  const validateSlug = (value: string): string | null => {
+    const trimmed = value.trim().toLowerCase()
+    if (trimmed.length < 3 || trimmed.length > 20) return "Slug must be 3-20 characters."
+    if (!/^[a-z0-9-]+$/.test(trimmed)) return "Only lowercase letters, numbers, and hyphens are allowed."
+    if (trimmed.startsWith("-") || trimmed.endsWith("-")) return "No leading or trailing hyphens."
+    return null
+  }
+
+  const submitSlugChange = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!slugModal) return
+
+    const trimmedSlug = slugModal.newSlug.trim().toLowerCase()
+    const validationError = validateSlug(trimmedSlug)
+    setSlugError(validationError)
+    if (validationError) return
+
+    setSlugSaving(true)
+    setStatusMessage(null)
+
+    try {
+      const response = await fetch(`/api/session/${slugModal.node}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ old: slugModal.currentSlug, new: trimmedSlug }),
+      })
+
+      if (!response.ok) {
+        const message = await response.text()
+        setSlugError(message || "Failed to update slug.")
+        return
+      }
+
+      setActiveConnections((prev) =>
+        prev.map((conn) =>
+          conn.id === slugModal.connectionId
+            ? {
+                ...conn,
+                name: trimmedSlug,
+                remote: conn.node ? `${trimmedSlug}.${conn.node}` : trimmedSlug,
+              }
+            : conn,
+        ),
+      )
+
+      setStatusMessage("Slug updated")
+      setSlugModal(null)
+    } catch (error) {
+      console.error("Failed to update slug", error)
+      setSlugError("Failed to update slug.")
+    } finally {
+      setSlugSaving(false)
+    }
+  }
+
+  useEffect(() => {
+    if (slugModal) {
+      const previousOverflow = document.body.style.overflow
+      document.body.style.overflow = "hidden"
+      return () => {
+        document.body.style.overflow = previousOverflow
+      }
+    }
+  }, [slugModal])
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenActionId(null)
+        setSlugModal(null)
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape)
+    return () => window.removeEventListener("keydown", closeOnEscape)
+  }, [])
+
+  const slugModalContent = !slugModal
+    ? null
+    : (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-lg border border-gray-800 bg-gray-900 p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Change slug</h3>
+                <p className="text-sm text-gray-400">Update the identifier for this tunnel.</p>
+              </div>
+              <button
+                onClick={closeSlugModal}
+                className="text-gray-400 hover:text-gray-200"
+                aria-label="Close modal"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={submitSlugChange} className="mt-4 space-y-4">
+              <label className="block text-sm text-gray-300">
+                New slug
+                <input
+                  type="text"
+                  value={slugModal.newSlug}
+                  onChange={(e) => {
+                    const nextValue = e.target.value.toLowerCase()
+                    setSlugModal((prev) => (prev ? { ...prev, newSlug: nextValue } : prev))
+                    setSlugError(validateSlug(nextValue))
+                  }}
+                  className="mt-2 w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                  placeholder={slugModal.currentSlug}
+                />
+                {slugError && <p className="mt-2 text-sm text-red-400">{slugError}</p>}
+              </label>
+
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closeSlugModal}
+                  className="rounded-md border border-gray-700 px-4 py-2 text-sm text-gray-200 hover:border-gray-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={Boolean(slugError) || slugSaving}
+                  className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {slugSaving ? "Saving..." : "Save slug"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )
+
   return (
-    <main className="flex-1">
+    <>
+      <main className="flex-1">
       <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold">Active Forwarding</h1>
@@ -178,27 +336,50 @@ export default function DashboardClient({ initialActiveConnections }: DashboardC
                       <p className="text-sm text-gray-300">
                         {(connection.protocol || "http").toUpperCase()} · {connection.serverLabel}
                       </p>
-                      <p className="text-xs text-gray-400">{connection.remote || "—"}</p>
+                      {(() => {
+                        const isTcp = connection.protocol === "tcp"
+                        const isHttp = connection.protocol === "http" || connection.protocol === "https"
+                        const httpRemote = connection.remote ? `https://${connection.remote}` : "—"
+                        const tcpRemote =
+                          connection.node && connection.name
+                            ? `tcp://${connection.node}:${connection.name}`
+                            : connection.remote || "—"
+
+                        const displayRemote = isTcp ? tcpRemote : isHttp ? httpRemote : connection.remote || "—"
+
+                        return <p className="text-xs text-gray-400">{displayRemote}</p>
+                      })()}
                       <p className="text-xs text-gray-500">{metaText}</p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 md:justify-end">
-                      <div className="text-right">
-                        <p className="text-sm text-gray-300">Latency</p>
-                        <p className="text-lg font-semibold text-white">
-                          {connection.latencyMs != null ? `${connection.latencyMs}ms` : "—"}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-300">Data</p>
-                        <p className="text-lg font-semibold text-white">{connection.dataInOut || "—"}</p>
-                      </div>
+                    <div className="flex flex-wrap items-center gap-3 md:justify-end relative">
                       <button
-                        onClick={() => stopConnection(connection.id)}
-                        className="rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200 hover:border-red-500 hover:text-red-200 transition"
+                        onClick={() =>
+                          setOpenActionId((current) => (current === connection.id ? null : connection.id))
+                        }
+                        className="rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200 hover:border-gray-500 transition"
                       >
-                        Stop
+                        Actions
                       </button>
+
+                      {openActionId === connection.id && (
+                        <div className="absolute right-0 top-12 z-10 w-44 rounded-md border border-gray-700 bg-gray-800 shadow-lg">
+                          <button
+                            className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-gray-700"
+                            onClick={() => stopConnection(connection.id)}
+                          >
+                            Stop connection
+                          </button>
+                          {connection.protocol !== "tcp" && (
+                            <button
+                                className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-gray-700"
+                                onClick={() => openChangeSlugModal(connection)}
+                            >
+                                Change slug
+                            </button>
+                            )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
@@ -228,6 +409,8 @@ export default function DashboardClient({ initialActiveConnections }: DashboardC
           />
         </div>
       </div>
-    </main>
+      </main>
+      {slugModalContent}
+    </>
   )
 }
