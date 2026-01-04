@@ -3,10 +3,20 @@ import SiteFooter from "@/components/site-footer"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import DashboardClient from "./dashboard-client"
+import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {
+  const requestHeaders = await headers()
+  const session = await auth.api.getSession({
+    headers: requestHeaders,
+  }).catch(() => {
+    redirect('/')
+  })
+
   const { token } = await auth.api.getToken({
-      headers: await headers(),
+    headers: requestHeaders,
+  }).catch(() => {
+    redirect('/')
   })
 
   const data = await fetch(`${process.env.API_URL}/api/sessions`, {
@@ -20,8 +30,10 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-950 text-white">
-      <SiteHeader />
-      <DashboardClient initialActiveConnections={initialActiveConnections} />
+      <SiteHeader session={session} />
+      <DashboardClient
+        initialActiveConnections={initialActiveConnections}
+      />
       <SiteFooter />
     </div>
   )

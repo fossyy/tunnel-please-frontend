@@ -34,7 +34,7 @@ const toActiveConnection = (session: ApiSession): ActiveConnection => {
     status: session.active ? "connected" : "error",
     protocol: (session.forwarding_type || "http").toLowerCase(),
     serverLabel: session.node || "Unknown node",
-    remote: session.slug ? `${session.slug}.tunnl.live` : session.node || "—",
+    remote: session.slug ? `${session.slug}.${session.node}` : session.node || "—",
     startedAgo,
     latencyMs: null,
     dataInOut: undefined,
@@ -86,26 +86,18 @@ export default function DashboardClient({ initialActiveConnections }: DashboardC
   const [activeConnections, setActiveConnections] = useState<ActiveConnection[]>(
     initialActiveConnections.map(toActiveConnection),
   )
-  const [session, setSession] = useState<SessionResponse["data"] | null>(null)
+  const { data: cachedSession } = authClient.useSession()
+  const [session, setSession] = useState<SessionResponse["data"] | null>(cachedSession ?? null)
 
   useEffect(() => {
     setActiveConnections(initialActiveConnections.map(toActiveConnection))
   }, [initialActiveConnections])
 
   useEffect(() => {
-    const fetchSession = async () => {
-      try {
-        const result = await authClient.getSession()
-        if (result.data) {
-          setSession(result.data)
-        }
-      } catch (error) {
-        console.error("Error fetching session", error)
-      }
+    if (!session && cachedSession) {
+      setSession(cachedSession)
     }
-
-    fetchSession()
-  }, [])
+  }, [cachedSession, session])
 
   const stopConnection = (id: string) => {
     setActiveConnections((prev) => prev.filter((conn) => conn.id !== id))

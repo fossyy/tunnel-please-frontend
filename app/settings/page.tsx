@@ -1,40 +1,36 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client"
 import SiteHeader from "@/components/site-header"
 import SiteFooter from "@/components/site-footer"
 
 export default function SettingsPage() {
-  type SessionResponse = Awaited<ReturnType<typeof authClient.getSession>>
-  const [session, setSession] = useState<SessionResponse["data"] | null>(null)
   const [requireAuth, setRequireAuth] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
+  const { data: session, isPending } = authClient.useSession();
+  const router = useRouter();
 
   useEffect(() => {
-    const loadSession = async () => {
-      try {
-        const result = await authClient.getSession()
-        if (result.data) {
-          setSession(result.data)
-        }
-      } catch (error) {
-        console.error("Failed to load session", error)
-      }
+    if (!isPending && !session) {
+      router.push('/login');
     }
+  }, [session, isPending, router]);
 
-    loadSession()
-  }, [])
-
+  if (isPending) {
+    return <div>Loading...</div>;
+  }
+  
   const handleToggle = (value: boolean) => {
     setRequireAuth(value)
     setMessage(value ? "Authentication required for tunnel requests" : "Authentication not required for tunnel requests")
     setTimeout(() => setMessage(null), 2500)
   }
 
-  return (
+  return session ? (
     <div className="flex min-h-screen flex-col bg-gray-950 text-white">
-      <SiteHeader />
+      <SiteHeader session={session} />
 
       <main className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
@@ -80,5 +76,5 @@ export default function SettingsPage() {
       </main>
       <SiteFooter />
     </div>
-  )
+  ) : null;
 }

@@ -5,7 +5,6 @@ import TunnelConfig, { type TunnelConfig as TunnelConfigType, type Server } from
 import SiteHeader from "@/components/site-header"
 import SiteFooter from "@/components/site-footer"
 import { authClient } from "@/lib/auth-client"
-import { useEffect } from "react"
 
 const defaultConfig: TunnelConfigType = {
   type: "http",
@@ -16,26 +15,10 @@ const defaultConfig: TunnelConfigType = {
 export default function Home() {
   const [selectedServer, setSelectedServer] = useState<Server | null>(null)
   const [tunnelConfig, setTunnelConfig] = useState<TunnelConfigType>(defaultConfig)
-  type SessionData = Awaited<ReturnType<typeof authClient.getSession>>;
-  const [logedin, setLogedin] = useState<SessionData | null>(null)
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const result = await authClient.getSession()
-        if (result.data != null) {
-          setLogedin(result.data.user);
-        }
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      }
-    };
-
-    fetchData();
-  }, []);
+  const { data: session } = authClient.useSession()
   return (
     <div className="flex min-h-screen flex-col bg-gray-950 text-white">
-      <SiteHeader />
+      <SiteHeader session={session}/>
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-8">
         <div className="w-full max-w-4xl mx-auto">
           <div className="text-center mb-12">
@@ -52,8 +35,8 @@ export default function Home() {
             onConfigChange={setTunnelConfig}
             selectedServer={selectedServer}
             onServerSelect={setSelectedServer}
-            isAuthenticated={logedin != null ? true : false}
-            userId={logedin?.sshIdentifier}
+            isAuthenticated={Boolean(session)}
+            userId={session?.user?.sshIdentifier}
           />
 
           <div className="max-w-3xl mx-auto">

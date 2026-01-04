@@ -3,29 +3,16 @@
 import Link from "next/link"
 import TunnlLogo from "./tunnl-logo"
 import UserMenu from "./user-menu"
-import { useEffect, useState } from "react"
 import { authClient } from "@/lib/auth-client";
 import { redirect, RedirectType } from 'next/navigation'
 
-export default function SiteHeader() {
-    type SessionData = Awaited<ReturnType<typeof authClient.getSession>>;
-    const [logedin, setLogedin] = useState<SessionData | null>(null)
+type UseSessionReturn = ReturnType<typeof authClient.useSession>;
+type SessionType = UseSessionReturn extends { data: infer D } ? D : never;
+type SiteHeaderProps = {
+  session?: SessionType;
+};
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const result = await authClient.getSession()
-                if (result.data != null) {
-                    setLogedin(result.data.user);
-                }
-            } catch (error) {
-                console.error('Error fetching data:', error);
-            }
-        };
-
-        fetchData();
-    }, []);
-
+export default function SiteHeader({ session }: SiteHeaderProps) {
     const logout = async () => {
         await authClient.signOut({
             fetchOptions: {
@@ -47,12 +34,12 @@ export default function SiteHeader() {
                     </div>
                     
                     <div className="flex items-center gap-4">
-                        {logedin ? (
+                        {session ? (
                             <UserMenu
                                 user={{
-                                    name: logedin.name ?? "User",
-                                    email: logedin.email ?? "",
-                                    image: logedin.image ?? undefined,
+                                    name: session.user?.name ?? "User",
+                                    email: session.user.email ?? "",
+                                    image: session.user.image ?? undefined,
                                 }}
                                 onSignOut={logout}
                             />
