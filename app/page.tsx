@@ -53,7 +53,7 @@ export default function Home() {
             selectedServer={selectedServer}
             onServerSelect={setSelectedServer}
             isAuthenticated={logedin != null ? true : false}
-            userId={logedin?.id}
+            userId={logedin?.sshIdentifier}
           />
 
           <div className="max-w-3xl mx-auto">
