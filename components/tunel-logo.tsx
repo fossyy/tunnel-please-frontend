@@ -1,6 +1,6 @@
 "use client"
 
-export default function TunnlLogo() {
+export default function TunelLogo() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width={20} height={18}>
       <path

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Tunnl Please",
-  description: "Tunnl is a fast and secure network with low-latency servers in Singapore. Simple, private, and reliable.",
+  title: "Tunel Please",
+  description: "Tunel is a fast and secure network with low-latency servers in Singapore. Simple, private, and reliable.",
 };
 
 export default function RootLayout({

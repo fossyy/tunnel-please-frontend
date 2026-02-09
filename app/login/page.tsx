@@ -31,7 +31,7 @@ export default function LoginPage() {
           <div className="text-center mb-8">
             <Link href="/" className="inline-block">
               <h1 className="text-3xl font-bold tracking-tight mb-2">
-                <span className="text-emerald-400">tunnl</span>.live
+                <span className="text-emerald-400">tunel</span>.live
               </h1>
             </Link>
             <p className="text-gray-400">Sign in to manage your tunnels</p>

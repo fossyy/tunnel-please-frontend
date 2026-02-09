@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import TunnlLogo from "./tunnl-logo"
+import TunelLogo from "./tunel-logo"
 import UserMenu from "./user-menu"
 import { authClient } from "@/lib/auth-client";
 import { redirect, RedirectType } from 'next/navigation'
@@ -27,9 +27,9 @@ export default function SiteHeader({ session }: SiteHeaderProps) {
             <div className="max-w-7xl mx-auto px-4 py-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <TunnlLogo />
+                        <TunelLogo />
                         <span className="text-xl font-bold">
-                            <span className="text-emerald-400">tunnl</span>.live
+                            <span className="text-emerald-400">tunel</span>.live
                         </span>
                     </div>
                     

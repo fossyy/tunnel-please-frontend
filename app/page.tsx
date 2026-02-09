@@ -23,7 +23,7 @@ export default function Home() {
         <div className="w-full max-w-4xl mx-auto">
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl mb-6">
-              <span className="text-emerald-400">tunnl</span>.live
+              <span className="text-emerald-400">tunel</span>.live
             </h1>
             <p className="text-lg text-gray-400 md:text-xl max-w-2xl mx-auto">
               Expose your local services to the internet securely with our fast and reliable SSH tunneling service.
