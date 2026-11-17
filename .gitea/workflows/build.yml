@@ -1,0 +1,50 @@
+name: Build and publish
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+    paths:
+      - index.html
+      - src/**
+      - scripts/**
+      - package.json
+      - package-lock.json
+      - vite.config.ts
+      - tsconfig.json
+      - Dockerfile
+      - .dockerignore
+      - nginx.conf
+      - .gitea/workflows/build.yml
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          registry: git.fossy.my.id
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build and push main
+        if: github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: git.fossy.my.id/${{ secrets.DOCKER_USERNAME }}/tunnel-please-frontend:latest
+      - name: Build and push staging
+        if: github.ref == 'refs/heads/staging'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: git.fossy.my.id/${{ secrets.DOCKER_USERNAME }}/tunnel-please-frontend:staging
