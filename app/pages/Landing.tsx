@@ -1,13 +1,10 @@
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import UseCaseStack from '../components/UseCaseStack'
 import Configurator from '../components/Configurator'
 import SelfHost from '../components/SelfHost'
 import { BTN, CONTAINER, H1, TEXT_LINK } from '../lib/ui'
-import { usePageMeta } from '../lib/meta'
 
 export default function Landing() {
-  usePageMeta()
-
   return (
     <>
       <section id="product" className="border-b border-line">

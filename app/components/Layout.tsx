@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Link, Outlet, useLocation } from 'react-router-dom'
+import { Link, Outlet, useLocation } from 'react-router'
 import ThemeToggle from './ThemeToggle'
 import Footer from './Footer'
 import { CONTAINER } from '../lib/ui'

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { ISSUES, LICENSE, SOURCE } from '../data/servers'
 import { CONTAINER } from '../lib/ui'
 

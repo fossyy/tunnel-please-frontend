@@ -1,10 +1,7 @@
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { CONTAINER } from '../lib/ui'
-import { usePageMeta } from '../lib/meta'
 
 export default function NotFound() {
-  usePageMeta('Page not found | tunel.live', 'That address does not exist on tunel.live.')
-
   return (
     <div className={`${CONTAINER} max-w-[680px] py-16`}>
       <h1 className="text-[30px] font-medium tracking-[-0.025em] sm:text-[34px]">Page not found</h1>

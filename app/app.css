@@ -179,14 +179,14 @@
   }
 
   /* Fill the viewport and keep the footer at the bottom on short pages. */
-  #root {
+  #root, body {
     display: flex;
     min-height: 100vh;
     min-height: 100dvh;
     flex-direction: column;
   }
 
-  #main {
+  main {
     flex: 1 0 auto;
   }
 

@@ -6,16 +6,15 @@ on:
       - main
       - staging
     paths:
-      - index.html
-      - src/**
+      - app/**
       - scripts/**
       - package.json
       - package-lock.json
+      - react-router.config.ts
       - vite.config.ts
       - tsconfig.json
       - Dockerfile
       - .dockerignore
-      - nginx.conf
       - .gitea/workflows/build.yml
 
 jobs:

@@ -1,7 +1,10 @@
 .git
 .gitignore
-node_modules
+.gitea
+.react-router
+build
 dist
+node_modules
 logs
 *.log
 .env
